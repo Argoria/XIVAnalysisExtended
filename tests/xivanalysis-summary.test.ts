@@ -73,7 +73,7 @@ describe('xivanalysis aggregation', () => {
     ])
 
     expect(summary.gcdUptimePercent).toBeCloseTo((49000 / 60000) * 100)
-    expect(summary.gcdPullsMeasured).toBe(2)
+    expect(summary.gcdPlayerPullsMeasured).toBe(2)
     expect(summary.checklistPassed).toBe(2)
     expect(summary.checklistRules).toBe(3)
     expect(summary.gcdDowntimeMs).toBe(2000)
@@ -85,8 +85,8 @@ describe('xivanalysis aggregation', () => {
   it('does not turn missing uptime into a measured zero', () => {
     const summary = summarizeXivanalysis([result(1, null, null, [])])
     expect(summary.gcdUptimePercent).toBeNull()
-    expect(summary.gcdPullsMeasured).toBe(0)
-    expect(summary.pullsAnalyzed).toBe(1)
+    expect(summary.gcdPlayerPullsMeasured).toBe(0)
+    expect(summary.playerPullsAnalyzed).toBe(1)
   })
   it('preserves unavailable delay metrics instead of turning them into zero', () => {
     const missing = result(1, null, null, [])
