@@ -72,70 +72,25 @@ for (const extension of assetExtensions) {
 
 const resolveFromVendor = (id) => require.resolve(id, { paths: [XIVA] })
 const presetEnvPackage = require.resolve('@babel/preset-env/package.json', { paths: [XIVA] })
-const resolveFromPresetEnv = (id) =>
-  require.resolve(id, { paths: [path.dirname(presetEnvPackage)] })
-const loadModule = (modulePath) => {
-  const loaded = require(modulePath)
-  return loaded.default || loaded
+const classPropertiesPath = require.resolve('@babel/plugin-transform-class-properties', {
+  paths: [path.dirname(presetEnvPackage)],
+})
+
+// The pinned xivanalysis Babel config references this plugin without declaring it
+// directly. Under pnpm's strict layout it is only reachable through preset-env.
+// Expose that exact transitive copy to Node's resolver, then use upstream's config unchanged.
+const originalResolveFilename = Module._resolveFilename
+Module._resolveFilename = function patchedResolveFilename(request, parent, isMain, options) {
+  if (request === '@babel/plugin-transform-class-properties') return classPropertiesPath
+  return originalResolveFilename.call(this, request, parent, isMain, options)
 }
-
-const dependencyPlugin = loadModule(path.join(XIVA, 'config', 'babel-plugin-xiva-dependency.js'))
-const typescriptPlugin = loadModule(resolveFromVendor('@babel/plugin-transform-typescript'))
-const decoratorsPlugin = loadModule(resolveFromVendor('@babel/plugin-proposal-decorators'))
-const classPropertiesPlugin = loadModule(
-  resolveFromPresetEnv('@babel/plugin-transform-class-properties'),
-)
-const macrosPlugin = loadModule(resolveFromVendor('babel-plugin-macros'))
-const lodashPlugin = loadModule(resolveFromVendor('babel-plugin-lodash'))
-const transformRuntimePlugin = loadModule(resolveFromVendor('@babel/plugin-transform-runtime'))
-
-const getPlugins = ({ isTypescript = false, isTSX = false } = {}) =>
-  [
-    dependencyPlugin,
-    isTypescript && [typescriptPlugin, { isTSX, allowDeclareFields: true }],
-    [decoratorsPlugin, { version: '2023-11' }],
-    classPropertiesPlugin,
-    macrosPlugin,
-    lodashPlugin,
-    [
-      transformRuntimePlugin,
-      {
-        corejs: { version: 3 },
-        useESModules: true,
-        version: '^7.12.5',
-      },
-    ],
-  ].filter(Boolean)
 
 require(resolveFromVendor('@babel/register'))({
   extensions: ['.js', '.jsx', '.ts', '.tsx'],
   cwd: XIVA,
   root: XIVA,
-  babelrc: false,
-  configFile: false,
+  configFile: path.join(XIVA, 'babel.config.js'),
   cache: false,
-  presets: [
-    [
-      loadModule(resolveFromVendor('@babel/preset-env')),
-      {
-        bugfixes: true,
-        targets: { node: true },
-        include: ['proposal-class-static-block'],
-      },
-    ],
-    [
-      loadModule(resolveFromVendor('@babel/preset-react')),
-      {
-        development: false,
-        runtime: 'automatic',
-      },
-    ],
-  ],
-  overrides: [
-    { test: /[.]jsx?$/, plugins: getPlugins() },
-    { test: /[.]ts$/, plugins: getPlugins({ isTypescript: true }) },
-    { test: /[.]tsx$/, plugins: getPlugins({ isTypescript: true, isTSX: true }) },
-  ]
 })
 
 const { GameEdition } = require(path.join(XIVA, 'src', 'data', 'EDITIONS.ts'))
