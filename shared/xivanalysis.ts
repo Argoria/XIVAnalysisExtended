@@ -6,12 +6,12 @@ export interface XivanalysisAggregate {
   gcdUptimeMs: number
   eligibleGcdMs: number
   gcdUptimePercent: number | null
-  gcdDowntimeMs: number
-  gcdDowntimeCount: number
-  weavingDelayMs: number
-  weavingIssueCount: number
-  interruptedCastDelayMs: number
-  interruptedCastCount: number
+  gcdDowntimeMs: number | null
+  gcdDowntimeCount: number | null
+  weavingDelayMs: number | null
+  weavingIssueCount: number | null
+  interruptedCastDelayMs: number | null
+  interruptedCastCount: number | null
   checklistRules: number
   checklistPassed: number
   visibleSuggestions: number
@@ -24,10 +24,13 @@ export function summarizeXivanalysis(results: XivanalysisPlayerAnalysis[]): Xiva
   let gcdPullsMeasured = 0
   let gcdDowntimeMs = 0
   let gcdDowntimeCount = 0
+  let gcdDowntimeMeasured = 0
   let weavingDelayMs = 0
   let weavingIssueCount = 0
+  let weavingMeasured = 0
   let interruptedCastDelayMs = 0
   let interruptedCastCount = 0
+  let interruptedCastMeasured = 0
   let checklistRules = 0
   let checklistPassed = 0
   let visibleSuggestions = 0
@@ -44,12 +47,21 @@ export function summarizeXivanalysis(results: XivanalysisPlayerAnalysis[]): Xiva
       eligibleGcdMs += uptime.effectiveFightMs
       gcdPullsMeasured++
     }
-    gcdDowntimeMs += uptime.gcdDowntimeMs ?? 0
-    gcdDowntimeCount += uptime.gcdDowntimeCount ?? 0
-    weavingDelayMs += uptime.weavingDelayMs ?? 0
-    weavingIssueCount += uptime.weavingIssueCount ?? 0
-    interruptedCastDelayMs += uptime.interruptedCastDelayMs ?? 0
-    interruptedCastCount += uptime.interruptedCastCount ?? 0
+    if (uptime.gcdDowntimeMs != null && uptime.gcdDowntimeCount != null) {
+      gcdDowntimeMs += uptime.gcdDowntimeMs
+      gcdDowntimeCount += uptime.gcdDowntimeCount
+      gcdDowntimeMeasured++
+    }
+    if (uptime.weavingDelayMs != null && uptime.weavingIssueCount != null) {
+      weavingDelayMs += uptime.weavingDelayMs
+      weavingIssueCount += uptime.weavingIssueCount
+      weavingMeasured++
+    }
+    if (uptime.interruptedCastDelayMs != null && uptime.interruptedCastCount != null) {
+      interruptedCastDelayMs += uptime.interruptedCastDelayMs
+      interruptedCastCount += uptime.interruptedCastCount
+      interruptedCastMeasured++
+    }
 
     checklistRules += result.checklist.length
     checklistPassed += result.checklist.filter((rule) => rule.passed).length
@@ -67,12 +79,12 @@ export function summarizeXivanalysis(results: XivanalysisPlayerAnalysis[]): Xiva
     gcdUptimeMs,
     eligibleGcdMs,
     gcdUptimePercent: eligibleGcdMs > 0 ? (gcdUptimeMs / eligibleGcdMs) * 100 : null,
-    gcdDowntimeMs,
-    gcdDowntimeCount,
-    weavingDelayMs,
-    weavingIssueCount,
-    interruptedCastDelayMs,
-    interruptedCastCount,
+    gcdDowntimeMs: gcdDowntimeMeasured ? gcdDowntimeMs : null,
+    gcdDowntimeCount: gcdDowntimeMeasured ? gcdDowntimeCount : null,
+    weavingDelayMs: weavingMeasured ? weavingDelayMs : null,
+    weavingIssueCount: weavingMeasured ? weavingIssueCount : null,
+    interruptedCastDelayMs: interruptedCastMeasured ? interruptedCastDelayMs : null,
+    interruptedCastCount: interruptedCastMeasured ? interruptedCastCount : null,
     checklistRules,
     checklistPassed,
     visibleSuggestions,
