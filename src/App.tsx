@@ -833,21 +833,63 @@ export function App() {
                       </button>
                     </section>
                   </div>
-                  <section className="next-step">
+                  <section className="next-step deep-session">
                     <div className="next-icon">
                       <Shield size={23} />
                     </div>
-                    <div>
-                      <span className="eyebrow">DEEPER JOB ANALYSIS</span>
-                      <h3>Deaths tell you where to look. Job metrics explain more.</h3>
-                      <p>
-                        Player × pull GCD uptime, lost-time issues, checklist results, and xivanalysis
-                        suggestions are now available on demand.
-                      </p>
+                    <div className="deep-session-body">
+                      <span className="eyebrow">DEEP EXECUTION COVERAGE</span>
+                      <h3>
+                        {deepSessionSummary.playerPullsAnalyzed} / {deepSessionTargets.length} player × pull
+                        analyses loaded
+                      </h3>
+                      {deepSessionSummary.playerPullsAnalyzed ? (
+                        <p>
+                          Weighted GCD uptime{' '}
+                          <strong>
+                            {deepSessionSummary.gcdUptimePercent == null
+                              ? '—'
+                              : `${deepSessionSummary.gcdUptimePercent.toFixed(1)}%`}
+                          </strong>{' '}
+                          · checklist {deepSessionSummary.checklistPassed}/{deepSessionSummary.checklistRules}{' '}
+                          · {deepSessionSummary.severeSuggestions} major findings
+                        </p>
+                      ) : (
+                        <p>
+                          Deep analysis is opt-in. Run the pinned xivanalysis engine only when you want
+                          execution metrics across the selected session.
+                        </p>
+                      )}
+                      {deepBatchError?.scope === sessionBatchScope && (
+                        <p className="deep-inline-error">{deepBatchError.message}</p>
+                      )}
                     </div>
-                    <button className="button" onClick={() => setHelpOpen(true)}>
-                      Analysis coverage <ArrowRight size={15} />
-                    </button>
+                    <div className="next-step-actions">
+                      <button
+                        className="button"
+                        disabled={
+                          isDemo ||
+                          isDeepBatchRunning(sessionBatchScope) ||
+                          deepSessionSummary.playerPullsAnalyzed >= deepSessionTargets.length
+                        }
+                        onClick={() => void analyzeSelectedSession()}
+                      >
+                        {isDeepBatchRunning(sessionBatchScope) ? (
+                          <>
+                            <LoaderCircle size={14} className="spin" />
+                            {deepBatchProgress?.scope === sessionBatchScope ? deepBatchProgress.done : 0}/
+                            {deepBatchProgress?.scope === sessionBatchScope ? deepBatchProgress.total : 0}
+                          </>
+                        ) : deepSessionSummary.playerPullsAnalyzed >= deepSessionTargets.length ? (
+                          'Session analyzed'
+                        ) : (
+                          'Analyze selected session'
+                        )}
+                      </button>
+                      <button className="text-button" onClick={() => setHelpOpen(true)}>
+                        Coverage <ArrowRight size={14} />
+                      </button>
+                    </div>
                   </section>
                 </>
               )}
@@ -943,15 +985,16 @@ export function App() {
                             className="button"
                             disabled={
                               isDemo ||
-                              deepBatchRunning ||
+                              playerBatchScope != null && isDeepBatchRunning(playerBatchScope) ||
                               (focusedDeepSummary?.playerPullsAnalyzed ?? 0) >= focusedParticipatingPulls.length
                             }
                             onClick={() => void analyzeFocusedPlayerPulls()}
                           >
-                            {deepBatchRunning ? (
+                            {playerBatchScope != null && isDeepBatchRunning(playerBatchScope) ? (
                               <>
                                 <LoaderCircle size={14} className="spin" />
-                                {deepBatchProgress?.done ?? 0}/{deepBatchProgress?.total ?? 0}
+                                {deepBatchProgress?.scope === playerBatchScope ? deepBatchProgress.done : 0}/
+                                {deepBatchProgress?.scope === playerBatchScope ? deepBatchProgress.total : 0}
                               </>
                             ) : (focusedDeepSummary?.playerPullsAnalyzed ?? 0) >=
                               focusedParticipatingPulls.length ? (
@@ -1014,9 +1057,9 @@ export function App() {
                             </div>
                           </div>
                         )}
-                        {deepBatchError && (
+                        {deepBatchError?.scope === playerBatchScope && (
                           <div className="notice error deep-rollup-error" role="alert">
-                            {deepBatchError}
+                            {deepBatchError.message}
                           </div>
                         )}
                       </div>
@@ -1120,6 +1163,8 @@ export function App() {
                           <th>Boss HP left</th>
                           <th>Deaths</th>
                           <th>First death</th>
+                          <th>GCD uptime</th>
+                          <th>Deep players</th>
                           <th />
                         </tr>
                       </thead>
@@ -1127,6 +1172,8 @@ export function App() {
                         {pulls.map((p) => {
                           const analysis = analyses[p.id]
                           const first = analysis?.deaths.find((d) => d.firstDeath)
+                          const deep = deepSummaryByPull.get(p.id)
+                          const pullBatchScope = `pull:${p.id}`
                           return (
                             <tr key={p.id}>
                               <td>
@@ -1153,15 +1200,45 @@ export function App() {
                                     : '—'}
                               </td>
                               <td>
-                                <button
-                                  className="text-button"
-                                  onClick={() => {
-                                    setFocusedPlayer(null)
-                                    setFocusedPull(p.id)
-                                  }}
-                                >
-                                  Inspect <ArrowRight size={14} />
-                                </button>
+                                {deep?.gcdUptimePercent == null
+                                  ? '—'
+                                  : `${deep.gcdUptimePercent.toFixed(1)}%`}
+                              </td>
+                              <td>
+                                {deep?.playerPullsAnalyzed ?? 0} / {p.playerIds.length}
+                              </td>
+                              <td>
+                                <div className="table-actions">
+                                  <button
+                                    className="text-button"
+                                    onClick={() => {
+                                      setFocusedPlayer(null)
+                                      setFocusedPull(p.id)
+                                    }}
+                                  >
+                                    Inspect <ArrowRight size={14} />
+                                  </button>
+                                  <button
+                                    className="text-button"
+                                    disabled={
+                                      isDemo ||
+                                      isDeepBatchRunning(pullBatchScope) ||
+                                      (deep?.playerPullsAnalyzed ?? 0) >= p.playerIds.length
+                                    }
+                                    onClick={() => void analyzePullPlayers(p)}
+                                  >
+                                    {isDeepBatchRunning(pullBatchScope)
+                                      ? `${deepBatchProgress?.scope === pullBatchScope ? deepBatchProgress.done : 0}/${
+                                          deepBatchProgress?.scope === pullBatchScope ? deepBatchProgress.total : 0
+                                        }`
+                                      : (deep?.playerPullsAnalyzed ?? 0) >= p.playerIds.length
+                                        ? 'Deep ✓'
+                                        : 'Analyze'}
+                                  </button>
+                                </div>
+                                {deepBatchError?.scope === pullBatchScope && (
+                                  <small className="table-error">{deepBatchError.message}</small>
+                                )}
                               </td>
                             </tr>
                           )
