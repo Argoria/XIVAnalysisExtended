@@ -42,7 +42,8 @@ export interface XivanalysisCompatInput {
   events: LegacyCompatibleEvent[]
 }
 
-const ids = (items: { id: number }[] | null | undefined) => (items ?? []).map((item) => item.id)
+const ids = (items: ({ id: number } | null)[] | null | undefined) =>
+  (items ?? []).flatMap((item) => (item ? [item.id] : []))
 const clampPercent = (value: number) => Math.max(0, Math.min(100, value))
 const compact = (value: string) => value.replace(/[\s_-]/g, '').toLowerCase()
 
@@ -65,7 +66,7 @@ export function buildXivanalysisCompatInput(
     ...(fight.enemyNPCs ?? []),
     ...(fight.enemyPets ?? []),
   ]) {
-    if (actor.instanceCount != null) instanceCounts.set(actor.id, actor.instanceCount)
+    if (actor?.instanceCount != null) instanceCounts.set(actor.id, actor.instanceCount)
   }
 
   const actors = raw.masterData.actors
@@ -131,7 +132,9 @@ export function buildXivanalysisCompatInput(
       progress,
       encounterID: fight.encounterID,
       difficulty: fight.difficulty ?? null,
-      gameZone: fight.gameZone ?? null,
+      gameZone: fight.gameZone
+        ? { id: fight.gameZone.id, name: fight.gameZone.name ?? 'Unknown zone' }
+        : null,
     },
     actors,
     events,
