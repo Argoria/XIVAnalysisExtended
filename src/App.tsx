@@ -202,14 +202,45 @@ export function App() {
   const performanceFor = (fightId: number, playerId: number) =>
     analyses[fightId]?.performance.find((entry) => entry.playerId === playerId)
 
+  const deepSummaryByPlayer = useMemo(() => {
+    const selectedPullIds = new Set(pulls.map((pull) => pull.id))
+    const grouped = new Map<number, XivanalysisPlayerAnalysis[]>()
+    for (const result of Object.values(deepAnalyses)) {
+      if (!selectedPullIds.has(result.fightId)) continue
+      const actorId = Number(result.actorId)
+      if (!Number.isFinite(actorId)) continue
+      const entries = grouped.get(actorId) ?? []
+      entries.push(result)
+      grouped.set(actorId, entries)
+    }
+    return new Map(
+      report.players.map((player) => [
+        player.id,
+        summarizeXivanalysis(grouped.get(player.id) ?? []),
+      ]),
+    )
+  }, [deepAnalyses, pulls, report.players])
+  const focusedDeepSummary =
+    focusedPlayer == null ? null : (deepSummaryByPlayer.get(focusedPlayer) ?? null)
+  const focusedParticipatingPulls =
+    focusedPlayer == null ? [] : pulls.filter((pull) => pull.playerIds.includes(focusedPlayer))
+
   function installReport(next: Report, fightId?: number | 'last') {
     analysisController.current?.abort()
+    xivanalysisController.current?.abort()
+    deepBatchController.current?.abort()
     const initial = fightId === 'last' ? next.pulls.at(-1) : next.pulls.find((p) => p.id === fightId)
     setReport(next)
     setEncounter(initial ? encounterKey(initial) : 'all')
     setSelected(initial ? [initial.id] : next.pulls.map((p) => p.id))
     setAnalyses(next.source === 'demo' ? Object.fromEntries(demoAnalyses.map((a) => [a.fightId, a])) : {})
     setFailures({})
+    setDeepAnalyses({})
+    setDeepBatchProgress(null)
+    setDeepBatchError('')
+    setXivanalysis(null)
+    setXivanalysisError('')
+    setXivanalysisLoading(false)
     setRevision(0)
     setFocusedPlayer(null)
     setFocusedPull(null)
@@ -258,6 +289,8 @@ export function App() {
     setLoadingReport(true)
     setLoadError('')
     analysisController.current?.abort()
+    xivanalysisController.current?.abort()
+    deepBatchController.current?.abort()
     loadController.current?.abort()
     const controller = new AbortController()
     loadController.current = controller
@@ -267,6 +300,12 @@ export function App() {
         setReport(next)
         setAnalyses({})
         setFailures({})
+        setDeepAnalyses({})
+        setDeepBatchProgress(null)
+        setDeepBatchError('')
+        setXivanalysis(null)
+        setXivanalysisError('')
+        setXivanalysisLoading(false)
         setRevision((v) => v + 1)
       }
     } catch (error) {
@@ -277,6 +316,64 @@ export function App() {
     } finally {
       if (!controller.signal.aborted) setLoadingReport(false)
     }
+  }
+
+  async function analyzeFocusedPlayerPulls() {
+    if (report.source === 'demo' || focusedPlayer == null) return
+
+    xivanalysisController.current?.abort()
+    setXivanalysisLoading(false)
+    deepBatchController.current?.abort()
+    const controller = new AbortController()
+    deepBatchController.current = controller
+
+    const targets = pulls.filter((pull) => pull.playerIds.includes(focusedPlayer))
+    const pending = targets.filter(
+      (pull) => !deepAnalyses[xivanalysisKey(pull.id, focusedPlayer)],
+    )
+    const alreadyDone = targets.length - pending.length
+    setDeepBatchProgress({ done: alreadyDone, total: targets.length })
+    setDeepBatchError('')
+    if (!pending.length) return
+
+    let cursor = 0
+    let failed = 0
+    async function worker() {
+      while (cursor < pending.length && !controller.signal.aborted) {
+        const pull = pending[cursor++]
+        const key = xivanalysisKey(pull.id, focusedPlayer!)
+        try {
+          const result = await api.xivanalysis(
+            report.code,
+            pull.id,
+            focusedPlayer!,
+            false,
+            controller.signal,
+          )
+          if (!controller.signal.aborted) {
+            setDeepAnalyses((previous) => ({ ...previous, [key]: result }))
+            if (focusedPull === pull.id) setXivanalysis(result)
+          }
+        } catch (error) {
+          if (!controller.signal.aborted) {
+            failed++
+            setDeepBatchError(
+              `${failed} deep ${failed === 1 ? 'analysis' : 'analyses'} failed: ${
+                error instanceof Error ? error.message : 'xivanalysis failed.'
+              }`,
+            )
+          }
+        } finally {
+          if (!controller.signal.aborted) {
+            setDeepBatchProgress((previous) =>
+              previous ? { ...previous, done: previous.done + 1 } : previous,
+            )
+          }
+        }
+      }
+    }
+
+    await Promise.all([worker(), worker()])
   }
 
   return (
