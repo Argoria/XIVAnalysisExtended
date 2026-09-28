@@ -888,6 +888,39 @@ select {
   margin-left: 6px;
   color: #bbc7cb;
 }
+.deep-session-body {
+  flex: 1;
+  min-width: 0;
+}
+.deep-session-body strong {
+  color: #557b6e;
+}
+.next-step-actions {
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 7px;
+  flex: 0 0 auto;
+}
+.next-step-actions .button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  background: #f8faf8;
+  color: #6b897b;
+  border-color: #d6e3db;
+  font-size: 10px;
+}
+.next-step-actions .text-button {
+  justify-content: center;
+  font-size: 9px;
+}
+.deep-inline-error {
+  color: #a45f52 !important;
+}
+
 .next-step {
   display: flex;
   align-items: center;
@@ -989,6 +1022,26 @@ select {
   font-size: 12px;
   line-height: 1.6;
 }
+.table-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}
+.table-actions .text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.table-error {
+  display: block;
+  max-width: 220px;
+  margin-top: 4px;
+  color: #a8685d;
+  font-size: 8px;
+  line-height: 1.35;
+}
+
 .table-scroll {
   overflow-x: auto;
 }
@@ -1729,6 +1782,15 @@ tbody tr:last-child td {
   }
 }
 @media (max-width: 900px) {
+  .deep-session {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .next-step-actions {
+    width: 100%;
+    margin-left: 62px;
+    flex-direction: row;
+  }
   .deep-rollup-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
