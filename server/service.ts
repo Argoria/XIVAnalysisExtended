@@ -7,6 +7,12 @@ import {
   XIVA_V2_ADAPTER_VERSION,
   type XivanalysisCompatInput,
 } from './xivanalysis/v2-adapter'
+import {
+  IsolatedXivanalysisRunner,
+  XIVA_ENGINE_REVISION,
+  type XivanalysisEngineResult,
+  type XivanalysisEngineRunner,
+} from './xivanalysis/runner'
 
 class Cache<T> {
   private entries = new Map<string, { value: T; expires: number }>()
@@ -30,7 +36,11 @@ export class ReportService {
   private reports = new Cache<RawReport>(10)
   private analyses = new Cache<PullAnalysis>(300)
   private xivanalysisInputs = new Cache<XivanalysisCompatInput>(50)
-  constructor(public client: FflogsClient) {}
+  private xivanalysisResults = new Cache<XivanalysisEngineResult>(300)
+  constructor(
+    public client: FflogsClient,
+    private xivanalysisRunner: XivanalysisEngineRunner = new IsolatedXivanalysisRunner(),
+  ) {}
 
   async report(code: string, refresh = false, signal?: AbortSignal) {
     let raw = refresh ? undefined : this.reports.get(code)
@@ -74,6 +84,36 @@ export class ReportService {
     const events = await this.client.analysisEvents(code, pull, signal)
     const result = buildXivanalysisCompatInput(raw, pull, events)
     this.xivanalysisInputs.set(key, result)
+    return result
+  }
+
+  async xivanalysis(
+    code: string,
+    id: number,
+    actorId: number,
+    refresh = false,
+    signal?: AbortSignal,
+  ) {
+    const input = await this.xivanalysisInput(code, id, refresh, signal)
+    const actor = input.actors.find(
+      (candidate) => candidate.id === String(actorId) && candidate.playerControlled,
+    )
+    if (!actor) throw new FflogsError('Selected player did not participate in this pull.', 404)
+
+    const key = [
+      code,
+      id,
+      actorId,
+      input.adapterVersion,
+      XIVA_ENGINE_REVISION,
+      input.pull.duration,
+      input.events.length,
+    ].join(':')
+    const cached = refresh ? undefined : this.xivanalysisResults.get(key)
+    if (cached) return cached
+
+    const result = await this.xivanalysisRunner.analyze(input, String(actorId), signal)
+    this.xivanalysisResults.set(key, result)
     return result
   }
 }

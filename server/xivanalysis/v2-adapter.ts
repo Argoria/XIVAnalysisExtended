@@ -23,11 +23,13 @@ export type LegacyCompatibleEvent = RawAnalysisEvent & {
 export interface XivanalysisCompatInput {
   adapterVersion: string
   reportCode: string
+  reportTitle: string
   reportTimestamp: number
   reportLanguage: string | null
   pull: {
     id: string
     fightId: number
+    name: string
     timestamp: number
     firstEventTimestamp: number
     duration: number
@@ -116,11 +118,13 @@ export function buildXivanalysisCompatInput(
   return {
     adapterVersion: XIVA_V2_ADAPTER_VERSION,
     reportCode: raw.code,
+    reportTitle: raw.title,
     reportTimestamp: raw.startTime,
     reportLanguage: raw.masterData.lang ?? null,
     pull: {
       id: String(fight.id),
       fightId: fight.id,
+      name: fight.name,
       timestamp: raw.startTime + combatStart,
       firstEventTimestamp: raw.startTime + fight.startTime,
       duration: combatTime,

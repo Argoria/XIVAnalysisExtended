@@ -15,7 +15,9 @@
     "test:watch": "vitest",
     "check": "npm run typecheck && npm test && npm run build",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "analysis:setup": "git submodule update --init --recursive && corepack pnpm --dir vendor/xivanalysis install --frozen-lockfile",
+    "analysis:smoke": "node analysis-runner/runner.cjs < analysis-runner/smoke-input.json"
   },
   "dependencies": {
     "express": "^5.1.0",

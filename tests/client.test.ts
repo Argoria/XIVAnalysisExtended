@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { FflogsClient } from '../server/fflogs/client'
 import { normalizeReport } from '../server/fflogs/normalize'
 import { ReportService } from '../server/service'
+import type { XivanalysisEngineRunner } from '../server/xivanalysis/runner'
 import { fixture, event } from './fixtures'
 
 const json = (body: unknown, status = 200, headers?: HeadersInit) =>
@@ -257,6 +258,48 @@ describe('report service', () => {
       events: [],
     })
     expect(analysisEvents).toHaveBeenCalledTimes(2)
+  })
+
+  it('runs and caches upstream xivanalysis per participating player', async () => {
+    const { client } = setup()
+    vi.spyOn(client, 'report').mockResolvedValue(fixture)
+    vi.spyOn(client, 'analysisEvents').mockResolvedValue([])
+    const analyze = vi.fn(async (input, actorId) => ({
+      engineRevision: 'f532855e635bdfb4211cec8128d582dadfdc6a75',
+      adapterVersion: input.adapterVersion,
+      reportCode: input.reportCode,
+      fightId: input.pull.fightId,
+      actorId,
+      job: 'GUNBREAKER',
+      encounterKey: null,
+      adaptedEventCount: 0,
+      eventTypes: {},
+      moduleCount: 1,
+      modules: [{ handle: 'test', type: 'Test', error: null }],
+      suggestions: [],
+    }))
+    const runner: XivanalysisEngineRunner = { analyze }
+    const service = new ReportService(client, runner)
+
+    const first = await service.xivanalysis(fixture.code, 1, 1)
+    const second = await service.xivanalysis(fixture.code, 1, 1)
+
+    expect(second).toEqual(first)
+    expect(first.job).toBe('GUNBREAKER')
+    expect(analyze).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects xivanalysis for an actor that did not participate in the pull', async () => {
+    const { client } = setup()
+    vi.spyOn(client, 'report').mockResolvedValue(fixture)
+    vi.spyOn(client, 'analysisEvents').mockResolvedValue([])
+    const runner: XivanalysisEngineRunner = {
+      analyze: vi.fn(),
+    }
+    const service = new ReportService(client, runner)
+
+    await expect(service.xivanalysis(fixture.code, 1, 3)).rejects.toThrow('did not participate')
+    expect(runner.analyze).not.toHaveBeenCalled()
   })
 
   it('rejects trash segments before requesting any events', async () => {
