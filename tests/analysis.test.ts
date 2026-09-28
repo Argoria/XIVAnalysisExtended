@@ -111,6 +111,23 @@ describe('death evidence', () => {
       attribution: 'recorded',
     })
   })
+  it('computes raw pull DPS and rolls pet damage into the participating owner', () => {
+    const result = analyzePull(fixture, pull, [
+      event('damage', 70000, { sourceID: 1, targetID: 20, abilityGameID: 101, amount: 1000 }),
+      event('damage', 71000, { sourceID: 12, targetID: 20, abilityGameID: 101, amount: 500 }),
+      event('damage', 72000, { sourceID: 20, targetID: 1, abilityGameID: 101, amount: 9999 }),
+      event('damage', 73000, { sourceID: 1, targetID: 2, abilityGameID: 101, amount: 777 }),
+    ])
+    expect(result.performance.find((entry) => entry.playerId === 1)).toMatchObject({
+      damage: 1500,
+      dps: 15,
+      deaths: 0,
+      firstDeath: false,
+      bossRemaining: 40,
+    })
+    expect(result.performance.find((entry) => entry.playerId === 2)).toMatchObject({ damage: 0, dps: 0 })
+  })
+
   it('groups duplicate LB entities while preserving actor IDs and distinct cast times', () => {
     const result = analyzePull(fixture, pull, [
       event('cast', 80000, { sourceID: 10, abilityGameID: 200 }),
@@ -138,6 +155,9 @@ describe('aggregation', () => {
       deaths: 2,
       deathsPerPull: 1,
       deathFreePulls: 1,
+      totalDamage: 0,
+      averageDps: 0,
+      bestDps: 0,
     })
     expect(summary.players.find((p) => p.id === 2)).toMatchObject({ pulls: 1, deaths: 1, deathsPerPull: 1 })
     expect(summary.players.find((p) => p.id === 3)).toMatchObject({ pulls: 1, deaths: 0, deathFreePulls: 1 })
