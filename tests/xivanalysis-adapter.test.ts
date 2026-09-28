@@ -8,6 +8,7 @@ describe('FFLogs v2 → xivanalysis compatibility adapter', () => {
 
   it('uses combatTime for parser timing and v2 0–100 progression semantics', () => {
     const input = buildXivanalysisCompatInput(fixture, pull, [])
+    expect(input.reportLanguage).toBe('en')
     expect(input.pull).toMatchObject({
       id: '1',
       fightId: 1,
@@ -65,6 +66,7 @@ describe('FFLogs v2 → xivanalysis compatibility adapter', () => {
   it('retains actor ownership for upstream actor construction without using it for DPS', () => {
     const input = buildXivanalysisCompatInput(fixture, pull, [])
     expect(input.actors.find((actor) => actor.id === '12')).toMatchObject({
+      gameID: 1659,
       team: 'FRIEND',
       playerControlled: false,
       ownerId: '2',
