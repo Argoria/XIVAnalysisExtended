@@ -25,6 +25,14 @@ export function createApp(service: ReportService) {
     const { report } = await service.report(code, req.query.refresh === '1', controller.signal)
     res.json(report)
   })
+  app.get('/api/reports/:code/progression', async (req, res) => {
+    const code = parseReportInput(req.params.code).code
+    const controller = new AbortController()
+    res.on('close', () => {
+      if (!res.writableEnded) controller.abort()
+    })
+    res.json(await service.progression(code, controller.signal))
+  })
   app.get('/api/reports/:code/pulls/:id', async (req, res) => {
     const code = parseReportInput(req.params.code).code
     const parsedId = z.coerce.number().int().positive().safeParse(req.params.id)

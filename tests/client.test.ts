@@ -109,6 +109,19 @@ describe('FFLogs client', () => {
     )
   })
 
+  it('requests enemy casts for provisional progression without friendly filtering', async () => {
+    const { fetcher, client } = setup()
+    fetcher.mockResolvedValueOnce(token()).mockResolvedValueOnce(data({
+      events: { data: [event('cast', 70000, { sourceID: 20, abilityGameID: 100 })], nextPageTimestamp: null },
+    }))
+    await expect(client.events(fixture.code, pull, 'Casts', undefined, undefined, 'Enemies'))
+      .resolves.toHaveLength(1)
+    const query = JSON.parse(String(fetcher.mock.calls[1][1]?.body)).query as string
+    expect(query).toContain('hostilityType: Enemies')
+    expect(query).toContain('dataType: Casts')
+    expect(query).not.toContain('includeResources: true')
+  })
+
   it('fetches the complete xivanalysis event stream without a data-type filter', async () => {
     const { fetcher, client } = setup()
     const cast = {

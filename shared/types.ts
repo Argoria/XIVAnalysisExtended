@@ -92,6 +92,16 @@ export interface PullAnalysis {
   fetchedAt: number
 }
 
+/** Observed enemy casts provide provisional progression anchors for a pull. */
+export interface ProgressionMarker {
+  abilityId: number
+  name: string
+  occurrence: number
+  timestamp: number
+}
+
+export type PullProgression = Record<number, ProgressionMarker[]>
+
 export interface PlayerSummary extends Player {
   pulls: number
   deaths: number

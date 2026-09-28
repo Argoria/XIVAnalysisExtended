@@ -34,6 +34,23 @@ First deaths include ties at the exact timestamp. They are not labeled wipe caus
 
 ## xivanalysis integration
 
+### Provisional encounter progression
+
+The sidebar loads enemy cast events for each pull independently of deep xivanalysis. It numbers repeated casts
+within a pull (`Sadistic Screech #1`, `#2`, etc.) and groups pulls by their last observed cast. Clears have their
+own group. This is an observed event marker, not a verified phase or a claim about mechanic success. Encounter
+rules will later map selected cast IDs and occurrences to meaningful progression checkpoints, handle simultaneous
+adds and cast cancellations, and record the boss HP at each checkpoint. Missing or failed cast extraction does
+not alter FFLogs' fight and boss remaining percentages.
+
+### Planned extraction contracts
+
+Opener needs job-specific expected and observed action windows; mitigation needs defensive events matched to
+eligible incoming damage; DoT uptime needs targetable windows and job-specific effects; boss mechanics need
+versioned encounter cast IDs, occurrence order, and player hit evidence. Each metric must carry a measured,
+unsupported, incomplete, or not-applicable state, plus its observed window and opportunity count. A measured
+zero is a real result, never a substitute for missing data.
+
 Pinned upstream revision: `f532855e635bdfb4211cec8128d582dadfdc6a75` (`dawntrail` at initial checkout). Review and test upgrades explicitly.
 
 Current adapter status:

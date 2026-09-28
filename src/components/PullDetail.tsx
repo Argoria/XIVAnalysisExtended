@@ -372,8 +372,19 @@ export function PullDetail({
 function XivanalysisDetail({ analysis }: { analysis: XivanalysisPlayerAnalysis }) {
   const uptime = analysis.uptime
   const visibleSuggestions = analysis.suggestions.filter((suggestion) => suggestion.severityName !== 'ignore')
+  const failedModules = analysis.modules.filter((module) => module.error)
   return (
     <div className="xiva-analysis">
+      {failedModules.length > 0 && (
+        <div className="notice error xiva-error">
+          {failedModules.length} xivanalysis {failedModules.length === 1 ? 'module' : 'modules'} failed. Results below may be incomplete:
+          <ul>
+            {failedModules.map((module) => (
+              <li key={module.handle}>{readableLabel(module.handle, module.handle)}: {module.error}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="xiva-metrics">
         <div>
           <span>GCD uptime</span>
@@ -569,12 +580,14 @@ export function Coverage() {
           <ArrowDownRight size={18} />
           Next extraction work
         </h3>
-        <p>
-          xivanalysis does not expose one universal opener-correctness value across jobs. Opener, mitigation,
-          DoT-specific uptime, and boss-mechanic extractors will be mapped from the relevant upstream modules
-          instead of inferred from rendered JSX.
-        </p>
-        <p>Unsupported, incomplete, and not-applicable metrics remain distinct from a measured zero.</p>
+        <p>These are planned extractors. None is counted as a measured result yet:</p>
+        <div className="extraction-list">
+          <div><strong>Opener</strong><span>Job-specific action sequence and timing, from each job's xivanalysis modules. Report observed actions, expected actions, and coverage; no universal pass/fail shortcut.</span></div>
+          <div><strong>Mitigation</strong><span>Defensive casts aligned to incoming damage and encounter windows. Attribute usage only where the player had an eligible opportunity.</span></div>
+          <div><strong>DoT uptime</strong><span>Use job and target-specific DoT tracking plus targetable windows. Jobs without a DoT receive not-applicable, not zero.</span></div>
+          <div><strong>Boss mechanics</strong><span>Map encounter-specific enemy casts, repeated occurrences, player hits, and phase windows to named opportunities. The sidebar's last enemy cast is only a provisional progression marker.</span></div>
+        </div>
+        <p>Each extractor must expose measured, unsupported, incomplete, or not-applicable status. Missing evidence must never become a measured zero.</p>
       </div>
       <div className="coverage-block">
         <h3>

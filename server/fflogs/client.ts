@@ -48,6 +48,14 @@ export const EVENTS_QUERY = `query Events($code: String!, $fightIDs: [Int]!, $st
     }
   } }
 }`
+export const ENEMY_CASTS_QUERY = `query EnemyCasts($code: String!, $fightIDs: [Int]!, $start: Float!, $end: Float!) {
+  reportData { report(code: $code) {
+    events(fightIDs: $fightIDs, startTime: $start, endTime: $end, dataType: Casts,
+      hostilityType: Enemies, limit: 10000) {
+      data nextPageTimestamp
+    }
+  } }
+}`
 export const ANALYSIS_EVENTS_QUERY = `query AnalysisEvents($code: String!, $fightIDs: [Int]!, $start: Float!, $end: Float!) {
   reportData { report(code: $code) {
     events(fightIDs: $fightIDs, startTime: $start, endTime: $end, includeResources: true,
@@ -305,13 +313,14 @@ export class FflogsClient {
     dataType: 'Deaths' | 'DamageTaken' | 'Casts',
     filter?: string,
     signal?: AbortSignal,
+    hostility: 'Friendlies' | 'Enemies' = 'Friendlies',
   ): Promise<RawEvent[]> {
     const events: RawEvent[] = []
     let start = pull.startTime
     for (let page = 0; page < 100; page++) {
       signal?.throwIfAborted()
       const data = await this.query(
-        EVENTS_QUERY,
+        hostility === 'Enemies' ? ENEMY_CASTS_QUERY : EVENTS_QUERY,
         { code, fightIDs: [pull.id], start, end: pull.endTime, dataType, filter: filter ?? null },
         signal,
       )

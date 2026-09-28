@@ -1,6 +1,7 @@
-import type { PullAnalysis } from '../shared/types'
+import type { PullAnalysis, PullProgression } from '../shared/types'
 import { FflogsClient, FflogsError } from './fflogs/client'
 import { analyzePull, normalizeReport } from './fflogs/normalize'
+import { progressionMarkers } from './fflogs/progression'
 import type { RawReport } from './fflogs/schema'
 import {
   buildXivanalysisCompatInput,
@@ -35,6 +36,7 @@ class Cache<T> {
 export class ReportService {
   private reports = new Cache<RawReport>(10)
   private analyses = new Cache<PullAnalysis>(300)
+  private progressions = new Cache<PullProgression>(10)
   private xivanalysisInputs = new Cache<XivanalysisCompatInput>(50)
   private xivanalysisResults = new Cache<XivanalysisEngineResult>(300)
   constructor(
@@ -70,6 +72,26 @@ export class ReportService {
       : []
     const result = analyzePull(raw, pull, [...deathEvents, ...damageTakenEvents, ...lbEvents], dpsMetrics)
     this.analyses.set(key, result)
+    return result
+  }
+
+  async progression(code: string, signal?: AbortSignal): Promise<PullProgression> {
+    const { raw, report } = await this.report(code, false, signal)
+    const key = `${code}:${raw.endTime}:progression`
+    const cached = this.progressions.get(key)
+    if (cached) return cached
+    const result: PullProgression = {}
+    let index = 0
+    async function worker(service: ReportService) {
+      while (index < report.pulls.length) {
+        signal?.throwIfAborted()
+        const pull = report.pulls[index++]
+        const events = await service.client.events(code, pull, 'Casts', undefined, signal, 'Enemies')
+        result[pull.id] = progressionMarkers(raw, pull, events)
+      }
+    }
+    await Promise.all([worker(this), worker(this)])
+    this.progressions.set(key, result)
     return result
   }
 

@@ -28,7 +28,7 @@ import { summarize } from '../shared/analysis'
 import { summarizeXivanalysis } from '../shared/xivanalysis'
 import { demoAnalyses, demoReport } from '../shared/demo'
 import { parseReportInput } from '../shared/report-input'
-import type { Pull, PullAnalysis, Report, XivanalysisPlayerAnalysis } from '../shared/types'
+import type { Pull, PullAnalysis, PullProgression, Report, XivanalysisPlayerAnalysis } from '../shared/types'
 import { api } from './api'
 import { duration, percent } from './format'
 
@@ -52,6 +52,8 @@ export function App() {
   )
   const [encounter, setEncounter] = useState(encounterKey(demoReport.pulls[0]))
   const [selected, setSelected] = useState<number[]>(demoReport.pulls.slice(0, 8).map((p) => p.id))
+  const [progression, setProgression] = useState<PullProgression>({})
+  const [progressionStatus, setProgressionStatus] = useState<'loading' | 'ready' | 'unavailable'>('ready')
   const [view, setView] = useState<View>('session')
   const [input, setInput] = useState('')
   const [loadError, setLoadError] = useState('')
@@ -102,11 +104,58 @@ export function App() {
       .catch(() => setConfigured(null))
     return () => loadController.current?.abort()
   }, [])
+  useEffect(() => {
+    if (report.source === 'demo') {
+      setProgression({})
+      setProgressionStatus('ready')
+      return
+    }
+    const controller = new AbortController()
+    setProgression({})
+    setProgressionStatus('loading')
+    api.progression(report.code, controller.signal)
+      .then((markers) => {
+        setProgression(markers)
+        setProgressionStatus('ready')
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setProgressionStatus('unavailable')
+      })
+    return () => controller.abort()
+  }, [report.code, report.endTime, report.source, revision])
   const available = useMemo(
     () => report.pulls.filter((p) => encounter === 'all' || encounterKey(p) === encounter),
     [report, encounter],
   )
   const pulls = useMemo(() => available.filter((p) => selected.includes(p.id)), [available, selected])
+  const pullGroups = useMemo(() => {
+    if (progressionStatus !== 'ready' || report.source === 'demo') {
+      return [{ key: 'all', label: 'Pulls', pulls: available, rank: 0 }]
+    }
+    const encounters = [...new Set(available.map(encounterKey))]
+    const references = new Map(encounters.map((key) => [
+      key,
+      [...available].filter((pull) => encounterKey(pull) === key)
+        .sort((a, b) => (progression[b.id]?.length ?? 0) - (progression[a.id]?.length ?? 0))[0],
+    ] as const))
+    const groups = new Map<string, { key: string; label: string; pulls: Pull[]; rank: number }>()
+    for (const pull of available) {
+      const encounterId = encounterKey(pull)
+      const reference = references.get(encounterId)
+      const last = progression[pull.id]?.at(-1)
+      const markerId = last ? `${last.abilityId}:${last.occurrence}` : 'opening'
+      const key = `${encounterId}:${pull.kill ? 'clear' : markerId}`
+      const label = `${encounter === 'all' ? `${pull.name} · ` : ''}${pull.kill ? 'Clear' : last ? `${last.name} #${last.occurrence}` : 'Opening / no cast recorded'}`
+      const markerRank = last && reference ? progression[reference.id]?.findIndex(
+        (candidate) => `${candidate.abilityId}:${candidate.occurrence}` === markerId,
+      ) ?? -1 : -1
+      const rank = encounters.indexOf(encounterId) * 100000 + (pull.kill ? 99999 : last ? (markerRank < 0 ? 99998 : markerRank) : -1)
+      const group = groups.get(key) ?? { key, label, pulls: [] as Pull[], rank }
+      group.pulls.push(pull)
+      groups.set(key, group)
+    }
+    return [...groups.values()].sort((a, b) => a.rank - b.rank)
+  }, [available, encounter, progression, progressionStatus, report.source])
   const selectionKey = selected.join(',')
 
   useEffect(() => {
@@ -496,7 +545,7 @@ export function App() {
         <div className="sidebar-section">
           <span className="eyebrow">PULL SELECTION</span>
           <span>
-            {selected.length}/{available.length}
+            {pulls.length}/{available.length}
           </span>
         </div>
         <div className="selection-actions">
@@ -505,26 +554,32 @@ export function App() {
           <button onClick={() => setSelected([])}>Clear</button>
         </div>
         <div className="pull-list">
-          {available.map((p) => (
-            <label key={p.id} className={`pull-option ${selected.includes(p.id) ? 'selected' : ''}`}>
-              <input
-                type="checkbox"
-                name={`pull-${p.id}`}
-                checked={selected.includes(p.id)}
-                onChange={(e) =>
-                  setSelected((current) =>
-                    e.target.checked ? [...current, p.id] : current.filter((id) => id !== p.id),
-                  )
-                }
-              />
-              <span>
-                Pull {p.id}
-                <small>{encounter === 'all' ? p.name : duration(p.endTime - p.startTime)}</small>
-              </span>
-              <span className={p.kill ? 'kill-text' : 'remaining'}>
-                {p.kill ? <Check size={15} aria-label="Kill" /> : percent(p.fightRemaining)}
-              </span>
-            </label>
+          {progressionStatus === 'loading' && <p className="progression-note">Reading enemy casts…</p>}
+          {progressionStatus === 'unavailable' && <p className="progression-note">Cast grouping unavailable.</p>}
+          {pullGroups.map((group) => (
+            <div className="pull-group" key={group.key}>
+              {group.key !== 'all' && <div className="pull-group-title" title={`Last observed enemy cast: ${group.label}`}>{group.label}</div>}
+              {group.pulls.map((p) => (
+                <button
+                  type="button"
+                  key={p.id}
+                  className={`pull-option ${selected.includes(p.id) ? 'selected' : ''}`}
+                  aria-pressed={selected.includes(p.id)}
+                  onClick={() => setSelected((current) =>
+                    current.includes(p.id) ? current.filter((id) => id !== p.id) : [...current, p.id],
+                  )}
+                >
+                  <span className="pull-selection-indicator" aria-hidden="true" />
+                  <span className="pull-option-name">
+                    Pull {p.id}
+                    <small>{encounter === 'all' ? p.name : duration(p.endTime - p.startTime)}</small>
+                  </span>
+                  <span className={p.kill ? 'kill-text' : 'remaining'}>
+                    {p.kill ? <Check size={15} aria-label="Kill" /> : percent(p.fightRemaining)}
+                  </span>
+                </button>
+              ))}
+            </div>
           ))}
         </div>
         <div className="sidebar-bottom">
