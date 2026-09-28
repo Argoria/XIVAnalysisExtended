@@ -11,7 +11,7 @@ export const actorSchema = z.object({
 export const abilitySchema = z.object({
   gameID: z.number(),
   name: z.string(),
-  type: z.number().nullable().optional(),
+  type: z.union([z.string(), z.number()]).nullable().optional(),
   icon: z.string().nullable().optional(),
 })
 export const fightActorSchema = z
@@ -83,7 +83,7 @@ export const analysisAbilitySchema = z
   .object({
     guid: z.number(),
     name: z.string(),
-    type: z.number().optional(),
+    type: z.union([z.string(), z.number()]).optional(),
     abilityIcon: z.string().optional(),
   })
   .passthrough()
