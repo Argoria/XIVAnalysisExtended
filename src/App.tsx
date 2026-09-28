@@ -53,9 +53,9 @@ export function App() {
   const [revision, setRevision] = useState(0)
   const [focusedPull, setFocusedPull] = useState<number | null>(null)
   const [focusedPlayer, setFocusedPlayer] = useState<number | null>(null)
-  const [playerPullSort, setPlayerPullSort] = useState<
-    'boss' | 'dps' | 'fewest-deaths' | 'most-deaths'
-  >('boss')
+  const [playerPullSort, setPlayerPullSort] = useState<'boss' | 'dps' | 'fewest-deaths' | 'most-deaths'>(
+    'boss',
+  )
   const [helpOpen, setHelpOpen] = useState(false)
   const loadController = useRef<AbortController | null>(null)
   const analysisController = useRef<AbortController | null>(null)
