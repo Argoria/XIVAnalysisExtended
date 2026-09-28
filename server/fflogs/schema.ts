@@ -14,13 +14,15 @@ export const abilitySchema = z.object({
   type: z.number().nullable().optional(),
   icon: z.string().nullable().optional(),
 })
-export const fightActorSchema = z.object({
-  id: z.number().int(),
-  gameID: z.number().nullable().optional(),
-  instanceCount: z.number().int().nullable().optional(),
-  groupCount: z.number().int().nullable().optional(),
-  petOwner: z.number().int().nullable().optional(),
-})
+export const fightActorSchema = z
+  .object({
+    id: z.number().int(),
+    gameID: z.number().nullable().optional(),
+    instanceCount: z.number().int().nullable().optional(),
+    groupCount: z.number().int().nullable().optional(),
+    petOwner: z.number().int().nullable().optional(),
+  })
+  .passthrough()
 export const fightSchema = z.object({
   id: z.number().int(),
   encounterID: z.number().int(),
@@ -34,11 +36,17 @@ export const fightSchema = z.object({
   fightPercentage: z.number().nullable().optional(),
   friendlyPlayers: z.array(z.number().int()).nullable(),
   enemyPlayers: z.array(z.number().int()).nullish(),
-  friendlyNPCs: z.array(fightActorSchema).nullish(),
-  friendlyPets: z.array(fightActorSchema).nullish(),
-  enemyNPCs: z.array(fightActorSchema).nullish(),
-  enemyPets: z.array(fightActorSchema).nullish(),
-  gameZone: z.object({ id: z.number().int(), name: z.string() }).nullish(),
+  friendlyNPCs: z.array(fightActorSchema.nullable()).nullish(),
+  friendlyPets: z.array(fightActorSchema.nullable()).nullish(),
+  enemyNPCs: z.array(fightActorSchema.nullable()).nullish(),
+  enemyPets: z.array(fightActorSchema.nullable()).nullish(),
+  gameZone: z
+    .object({
+      id: z.number(),
+      name: z.string().nullable().optional(),
+    })
+    .passthrough()
+    .nullish(),
 })
 export const reportSchema = z.object({
   code: z.string(),
