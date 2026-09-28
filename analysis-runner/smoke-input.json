@@ -1,0 +1,48 @@
+{
+  "actorId": "1",
+  "input": {
+    "adapterVersion": "fflogs-v2-legacy-compat/1",
+    "reportCode": "SMOKE",
+    "reportTimestamp": 1790546400000,
+    "reportLanguage": "en",
+    "pull": {
+      "id": "1",
+      "fightId": 1,
+      "timestamp": 1790546460000,
+      "firstEventTimestamp": 1790546460000,
+      "duration": 90000,
+      "progress": 35,
+      "encounterID": 96,
+      "difficulty": 101,
+      "gameZone": {
+        "id": 1234,
+        "name": "Smoke Arena"
+      }
+    },
+    "actors": [
+      {
+        "id": "1",
+        "gameID": 1001,
+        "name": "Tank",
+        "type": "Player",
+        "subType": "Gunbreaker",
+        "team": "FRIEND",
+        "playerControlled": true,
+        "ownerId": null,
+        "instanceCount": null
+      },
+      {
+        "id": "20",
+        "gameID": 9999,
+        "name": "Boss",
+        "type": "NPC",
+        "subType": "Boss",
+        "team": "FOE",
+        "playerControlled": false,
+        "ownerId": null,
+        "instanceCount": 1
+      }
+    ],
+    "events": []
+  }
+}
