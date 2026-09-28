@@ -5,7 +5,10 @@ import type { RawReport } from './fflogs/schema'
 
 class Cache<T> {
   private entries = new Map<string, { value: T; expires: number }>()
-  constructor(private capacity: number, private ttl = 60000) {}
+  constructor(
+    private capacity: number,
+    private ttl = 60000,
+  ) {}
   get(key: string) {
     const entry = this.entries.get(key)
     if (entry && entry.expires > Date.now()) return entry.value
