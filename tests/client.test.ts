@@ -276,6 +276,37 @@ describe('report service', () => {
       eventTypes: {},
       moduleCount: 1,
       modules: [{ handle: 'test', type: 'Test', error: null }],
+      uptime: {
+        fightDurationMs: input.pull.duration,
+        unavailableMs: 0,
+        effectiveFightMs: input.pull.duration,
+        gcdUptimeMs: 85000,
+        gcdUptimePercent: 94.44,
+        gcdCount: 36,
+        gcdDowntimeMs: 5000,
+        gcdDowntimeCount: 2,
+        weavingDelayMs: 1200,
+        weavingIssueCount: 1,
+        interruptedCastDelayMs: 0,
+        interruptedCastCount: 0,
+      },
+      checklist: [
+        {
+          label: 'core.always-cast.title',
+          percent: 94.44,
+          target: 98,
+          passed: false,
+          requirements: [
+            {
+              label: 'core.always-cast.gcd-uptime',
+              percent: 94.44,
+              value: null,
+              target: 100,
+              weight: 1,
+            },
+          ],
+        },
+      ],
       suggestions: [],
     }))
     const runner: XivanalysisEngineRunner = { analyze }
@@ -286,6 +317,8 @@ describe('report service', () => {
 
     expect(second).toEqual(first)
     expect(first.job).toBe('GUNBREAKER')
+    expect(first.uptime.gcdUptimePercent).toBe(94.44)
+    expect(first.checklist[0].passed).toBe(false)
     expect(analyze).toHaveBeenCalledTimes(1)
   })
 
