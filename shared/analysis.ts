@@ -11,10 +11,7 @@ import type {
 
 const metricKeys: DpsMetricKey[] = ['dps', 'rdps', 'ndps', 'cdps', 'adps']
 
-function aggregateDps(
-  entries: PlayerPullPerformance[],
-  mode: 'average' | 'best',
-): DpsMetrics {
+function aggregateDps(entries: PlayerPullPerformance[], mode: 'average' | 'best'): DpsMetrics {
   const result = {} as DpsMetrics
   for (const key of metricKeys) {
     const measured = entries.flatMap((entry) => {
@@ -30,8 +27,7 @@ function aggregateDps(
       continue
     }
     const observedMs = measured.reduce((sum, entry) => sum + entry.durationMs, 0)
-    result[key] =
-      measured.reduce((sum, entry) => sum + entry.value * entry.durationMs, 0) / observedMs
+    result[key] = measured.reduce((sum, entry) => sum + entry.value * entry.durationMs, 0) / observedMs
   }
   return result
 }

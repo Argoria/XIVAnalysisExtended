@@ -695,8 +695,14 @@ export function App() {
                                 <span className={`count-chip ${p.deaths ? 'bad' : 'good'}`}>{p.deaths}</span>
                               </td>
                               <td>{p.deathsPerPull.toFixed(2)}</td>
-                              <td>{p.averageDps.dps == null ? '—' : Math.round(p.averageDps.dps).toLocaleString()}</td>
-                              <td>{p.bestDps.dps == null ? '—' : Math.round(p.bestDps.dps).toLocaleString()}</td>
+                              <td>
+                                {p.averageDps.dps == null
+                                  ? '—'
+                                  : Math.round(p.averageDps.dps).toLocaleString()}
+                              </td>
+                              <td>
+                                {p.bestDps.dps == null ? '—' : Math.round(p.bestDps.dps).toLocaleString()}
+                              </td>
                               <td>{p.firstDeaths}</td>
                               <td>
                                 {p.deathFreePulls} / {p.pulls}
@@ -731,11 +737,21 @@ export function App() {
                           if (!ap) return 1
                           if (!bp) return -1
                           if (playerPullSort === 'dps')
-                            return (bp.metrics.dps ?? -Infinity) - (ap.metrics.dps ?? -Infinity) || a.id - b.id
+                            return (
+                              (bp.metrics.dps ?? -Infinity) - (ap.metrics.dps ?? -Infinity) || a.id - b.id
+                            )
                           if (playerPullSort === 'fewest-deaths')
-                            return ap.deaths - bp.deaths || (bp.metrics.dps ?? 0) - (ap.metrics.dps ?? 0) || a.id - b.id
+                            return (
+                              ap.deaths - bp.deaths ||
+                              (bp.metrics.dps ?? 0) - (ap.metrics.dps ?? 0) ||
+                              a.id - b.id
+                            )
                           if (playerPullSort === 'most-deaths')
-                            return bp.deaths - ap.deaths || (ap.metrics.dps ?? 0) - (bp.metrics.dps ?? 0) || a.id - b.id
+                            return (
+                              bp.deaths - ap.deaths ||
+                              (ap.metrics.dps ?? 0) - (bp.metrics.dps ?? 0) ||
+                              a.id - b.id
+                            )
                           return (
                             (ap.bossRemaining ?? Number.POSITIVE_INFINITY) -
                               (bp.bossRemaining ?? Number.POSITIVE_INFINITY) ||
@@ -885,7 +901,8 @@ export function App() {
                   </div>
                   <div className="card-footer">
                     FFLogs DPS, rDPS, nDPS, and cDPS are retained per player and pull. Opener, mitigation, DoT
-                    uptime, mechanics, and composite performance scores remain unavailable until xivanalysis is connected.
+                    uptime, mechanics, and composite performance scores remain unavailable until xivanalysis
+                    is connected.
                   </div>
                 </section>
               )}

@@ -201,11 +201,7 @@ export class FflogsClient {
     return envelope.reportData.report
   }
 
-  async dpsMetrics(
-    code: string,
-    pull: Pull,
-    signal?: AbortSignal,
-  ): Promise<Map<number, DpsMetrics>> {
+  async dpsMetrics(code: string, pull: Pull, signal?: AbortSignal): Promise<Map<number, DpsMetrics>> {
     const data = await this.query(DPS_METRICS_QUERY, { code, fightIDs: [pull.id] }, signal)
     const envelope = z
       .object({

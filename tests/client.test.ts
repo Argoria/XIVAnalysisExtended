@@ -104,12 +104,7 @@ describe('FFLogs client', () => {
       }),
     )
     await expect(client.dpsMetrics(fixture.code, pull)).resolves.toEqual(
-      new Map([
-        [
-          1,
-          { dps: 15000, rdps: 14750, ndps: 14500, cdps: 15200, adps: null },
-        ],
-      ]),
+      new Map([[1, { dps: 15000, rdps: 14750, ndps: 14500, cdps: 15200, adps: null }]]),
     )
   })
 

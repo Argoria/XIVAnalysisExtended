@@ -112,12 +112,7 @@ describe('death evidence', () => {
     })
   })
   it('attaches FFLogs-provided DPS metrics without recomputing damage', () => {
-    const metrics = new Map([
-      [
-        1,
-        { dps: 15000, rdps: 14750, ndps: 14500, cdps: 15200, adps: null },
-      ],
-    ])
+    const metrics = new Map([[1, { dps: 15000, rdps: 14750, ndps: 14500, cdps: 15200, adps: null }]])
     const result = analyzePull(fixture, pull, [], metrics)
     expect(result.performance.find((entry) => entry.playerId === 1)?.metrics).toEqual({
       dps: 15000,
