@@ -325,6 +325,95 @@ function severityName(value) {
   }
 }
 
+function finiteNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function describeNode(node) {
+  if (node == null || typeof node === 'boolean') return null
+  if (typeof node === 'string' || typeof node === 'number') return String(node)
+  if (Array.isArray(node)) {
+    const parts = node.map(describeNode).filter(Boolean)
+    return parts.length ? parts.join(' ') : null
+  }
+  if (typeof node !== 'object') return null
+
+  if (typeof node.id === 'string') return node.id
+  const props = node.props
+  if (!props || typeof props !== 'object') return null
+  if (typeof props.id === 'string') return props.id
+  if (typeof props.action === 'string') return `action:${props.action}`
+  if (typeof props.status === 'string') return `status:${props.status}`
+  if (typeof props.item === 'string') return `item:${props.item}`
+  return describeNode(props.children)
+}
+
+function issueSummary(module) {
+  if (!module || typeof module.getTotalDelay !== 'function' || typeof module.getIssueData !== 'function') {
+    return { delayMs: null, count: null }
+  }
+  const issues = module.getIssueData()
+  return {
+    delayMs: finiteNumber(module.getTotalDelay()),
+    count: Array.isArray(issues) ? issues.length : null,
+  }
+}
+
+function extractChecklist(parser) {
+  const checklist = parser.container.checklist
+  const rules = Array.isArray(checklist?.rules) ? checklist.rules : []
+  return rules.map((rule) => ({
+    label: describeNode(rule.name),
+    percent: finiteNumber(rule.percent) ?? 0,
+    target: finiteNumber(rule.target) ?? 100,
+    passed: Boolean(rule.passed),
+    requirements: Array.isArray(rule.requirements)
+      ? rule.requirements.map((requirement) => ({
+          label: describeNode(requirement.name),
+          percent: finiteNumber(requirement.percent) ?? 0,
+          value: finiteNumber(requirement.value),
+          target: finiteNumber(requirement.target) ?? 100,
+          weight: finiteNumber(requirement.weight) ?? 1,
+        }))
+      : [],
+  }))
+}
+
+function extractUptime(parser) {
+  const abc = parser.container.abc
+  const downtime = parser.container.downtime
+  const weaving = issueSummary(parser.container.weaving)
+  const interrupts = issueSummary(parser.container.interrupts)
+  const unavailableMs =
+    downtime && typeof downtime.getDowntime === 'function'
+      ? finiteNumber(downtime.getDowntime())
+      : null
+  const gcdCount = finiteNumber(abc?.gcdsCounted)
+  const hasGcdData = gcdCount != null && gcdCount > 0
+  const gcdUptimeMs = hasGcdData ? finiteNumber(abc?.gcdUptime) : null
+  const gcdUptimePercent =
+    hasGcdData && typeof abc?.getUptimePercent === 'function'
+      ? finiteNumber(abc.getUptimePercent())
+      : null
+  const gcdDowntime = issueSummary(abc)
+
+  return {
+    fightDurationMs: parser.pull.duration,
+    unavailableMs,
+    effectiveFightMs:
+      unavailableMs == null ? null : Math.max(0, parser.pull.duration - unavailableMs),
+    gcdUptimeMs,
+    gcdUptimePercent,
+    gcdCount,
+    gcdDowntimeMs: gcdDowntime.delayMs,
+    gcdDowntimeCount: gcdDowntime.count,
+    weavingDelayMs: weaving.delayMs,
+    weavingIssueCount: weaving.count,
+    interruptedCastDelayMs: interrupts.delayMs,
+    interruptedCastCount: interrupts.count,
+  }
+}
+
 async function analyse(input, actorId) {
   const { report, pull } = buildEngineObjects(input)
   const actor = pull.actors.find((candidate) => candidate.id === actorId && candidate.playerControlled)
@@ -369,12 +458,17 @@ async function analyse(input, actorId) {
   const suggestionsModule = parser.container.suggestions
   const suggestions = Array.isArray(suggestionsModule?._suggestions)
     ? suggestionsModule._suggestions.map((suggestion) => ({
-        severity: suggestion.severity,
+        severity: finiteNumber(suggestion.severity),
         severityName: severityName(suggestion.severity),
-        value: typeof suggestion.value === 'number' ? suggestion.value : null,
+        value: finiteNumber(suggestion.value),
         kind: suggestion.constructor?.name || 'Suggestion',
+        icon: typeof suggestion.icon === 'string' ? suggestion.icon : null,
+        content: describeNode(suggestion.content),
+        why: describeNode(suggestion.why),
       }))
     : []
+  const checklist = extractChecklist(parser)
+  const uptime = extractUptime(parser)
 
   const eventTypes = {}
   for (const event of adaptedEvents) {
@@ -393,6 +487,8 @@ async function analyse(input, actorId) {
     eventTypes,
     moduleCount: modules.length,
     modules,
+    uptime,
+    checklist,
     suggestions,
   }
 }
