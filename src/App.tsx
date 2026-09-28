@@ -211,6 +211,16 @@ export function App() {
   const performanceFor = (fightId: number, playerId: number) =>
     analyses[fightId]?.performance.find((entry) => entry.playerId === playerId)
 
+  const inspectedDeepByPlayer = useMemo<Record<number, XivanalysisPlayerAnalysis>>(() => {
+    if (!inspected) return {}
+    const byPlayer: Record<number, XivanalysisPlayerAnalysis> = {}
+    for (const playerId of inspected.playerIds) {
+      const result = deepAnalyses[xivanalysisKey(inspected.id, playerId)]
+      if (result) byPlayer[playerId] = result
+    }
+    return byPlayer
+  }, [deepAnalyses, inspected])
+
   const deepSummaryByPlayer = useMemo(() => {
     const selectedPullIds = new Set(pulls.map((pull) => pull.id))
     const grouped = new Map<number, XivanalysisPlayerAnalysis[]>()
@@ -1362,9 +1372,21 @@ export function App() {
                   error={failures[inspected.id]}
                   playerId={focusedPlayer}
                   xivanalysis={xivanalysis ?? undefined}
+                  xivanalysisByPlayer={inspectedDeepByPlayer}
                   xivanalysisLoading={xivanalysisLoading}
                   xivanalysisError={xivanalysisError || undefined}
+                  xivanalysisBatchRunning={isDeepBatchRunning(`pull:${inspected.id}`)}
+                  xivanalysisBatchProgress={
+                    deepBatchProgress?.scope === `pull:${inspected.id}`
+                      ? { done: deepBatchProgress.done, total: deepBatchProgress.total }
+                      : undefined
+                  }
+                  xivanalysisBatchError={
+                    deepBatchError?.scope === `pull:${inspected.id}` ? deepBatchError.message : undefined
+                  }
                   onSelectPlayer={setFocusedPlayer}
+                  onClearPlayer={() => setFocusedPlayer(null)}
+                  onAnalyzePull={() => void analyzePullPlayers(inspected)}
                 />
               )
             )}

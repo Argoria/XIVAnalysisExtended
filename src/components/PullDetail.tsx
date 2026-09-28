@@ -1,5 +1,6 @@
 import {
   ArrowDownRight,
+  ArrowLeft,
   Check,
   ChevronRight,
   CircleHelp,
@@ -8,8 +9,10 @@ import {
   Shield,
   Sparkles,
 } from 'lucide-react'
+import { summarizeXivanalysis } from '../../shared/xivanalysis'
 import type {
   Death,
+  PlayerPullPerformance,
   Pull,
   PullAnalysis,
   Report,
@@ -21,6 +24,8 @@ import { Empty, JobBadge } from './ui'
 
 const delay = (ms: number | null) => (ms == null ? '—' : `${(ms / 1000).toFixed(2)}s`)
 const metricPercent = (value: number | null) => (value == null ? '—' : `${value.toFixed(1)}%`)
+const metricNumber = (value: number | null) =>
+  value == null ? '—' : Math.round(value).toLocaleString()
 const readableLabel = (value: string | null, fallback: string) => {
   if (!value) return fallback
   return value
@@ -32,6 +37,43 @@ const readableLabel = (value: string | null, fallback: string) => {
     .replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
 
+const severeSuggestionCount = (analysis?: XivanalysisPlayerAnalysis) =>
+  analysis?.suggestions.filter(
+    (suggestion) =>
+      suggestion.severityName !== 'ignore' && (suggestion.severity === 0 || suggestion.severity === 1),
+  ).length ?? 0
+
+const failedChecklistCount = (analysis?: XivanalysisPlayerAnalysis) =>
+  analysis?.checklist.filter((rule) => !rule.passed).length ?? 0
+
+function PerformanceMetrics({ performance }: { performance?: PlayerPullPerformance }) {
+  const metrics = performance?.metrics
+  return (
+    <div className="pull-player-metrics">
+      <div>
+        <span>DPS</span>
+        <strong>{metricNumber(metrics?.dps ?? null)}</strong>
+      </div>
+      <div>
+        <span>rDPS</span>
+        <strong>{metricNumber(metrics?.rdps ?? null)}</strong>
+      </div>
+      <div>
+        <span>nDPS</span>
+        <strong>{metricNumber(metrics?.ndps ?? null)}</strong>
+      </div>
+      <div>
+        <span>cDPS</span>
+        <strong>{metricNumber(metrics?.cdps ?? null)}</strong>
+      </div>
+      <div>
+        <span>Deaths</span>
+        <strong>{performance?.deaths ?? '—'}</strong>
+      </div>
+    </div>
+  )
+}
+
 export function PullDetail({
   report,
   pull,
@@ -39,9 +81,15 @@ export function PullDetail({
   error,
   playerId,
   xivanalysis,
+  xivanalysisByPlayer = {},
   xivanalysisLoading = false,
   xivanalysisError,
+  xivanalysisBatchRunning = false,
+  xivanalysisBatchProgress,
+  xivanalysisBatchError,
   onSelectPlayer,
+  onClearPlayer,
+  onAnalyzePull,
 }: {
   report: Report
   pull: Pull
@@ -49,11 +97,30 @@ export function PullDetail({
   error?: string
   playerId?: number | null
   xivanalysis?: XivanalysisPlayerAnalysis
+  xivanalysisByPlayer?: Record<number, XivanalysisPlayerAnalysis>
   xivanalysisLoading?: boolean
   xivanalysisError?: string
+  xivanalysisBatchRunning?: boolean
+  xivanalysisBatchProgress?: { done: number; total: number }
+  xivanalysisBatchError?: string
   onSelectPlayer?: (playerId: number) => void
+  onClearPlayer?: () => void
+  onAnalyzePull?: () => void
 }) {
   const player = playerId == null ? undefined : report.players.find((candidate) => candidate.id === playerId)
+  const participatingPlayers = report.players.filter((candidate) => pull.playerIds.includes(candidate.id))
+  const deepResults = participatingPlayers
+    .map((candidate) => xivanalysisByPlayer[candidate.id])
+    .filter((result): result is XivanalysisPlayerAnalysis => result != null)
+  const deepSummary = summarizeXivanalysis(deepResults)
+  const firstDeath = analysis?.deaths.find((death) => death.firstDeath)
+  const firstDeathPlayer = firstDeath
+    ? report.players.find((candidate) => candidate.id === firstDeath.playerId)
+    : undefined
+  const selectedPerformance = player
+    ? analysis?.performance.find((entry) => entry.playerId === player.id)
+    : undefined
+  const selectedDeep = player ? xivanalysis ?? xivanalysisByPlayer[player.id] : undefined
   const xivaLink =
     report.source !== 'demo' && player
       ? `https://xivanalysis.com/fflogs/${report.code}/${pull.id}/${player.id}`
@@ -68,21 +135,196 @@ export function PullDetail({
       </h2>
       <p className="detail-subtitle">
         {pull.name} · {duration(pull.endTime - pull.startTime)} · {percent(pull.fightRemaining)} fight
-        remaining
+        remaining · {percent(pull.bossRemaining)} boss HP
       </p>
       {report.source !== 'demo' && (
         <a className="external-link" href={fflogsLink(report.code, pull.id)} target="_blank" rel="noreferrer">
           Open this pull in FFLogs <ExternalLink size={14} />
         </a>
       )}
-      <div className="detail-divider" />
+
       {!analysis ? (
-        <Empty
-          title={error ? 'Analysis unavailable' : 'Events are loading'}
-          text={error || 'Select this pull in the sidebar to load its analysis.'}
-        />
+        <>
+          <div className="detail-divider" />
+          <Empty
+            title={error ? 'Analysis unavailable' : 'Events are loading'}
+            text={error || 'Select this pull in the sidebar to load its analysis.'}
+          />
+        </>
       ) : (
         <>
+          <div className="pull-review-summary">
+            <div>
+              <span>Deaths</span>
+              <strong>{analysis.deaths.length}</strong>
+              <small>{analysis.deaths.length ? 'including wipe cleanup' : 'clean pull'}</small>
+            </div>
+            <div>
+              <span>First death</span>
+              <strong>{firstDeathPlayer?.name ?? 'None'}</strong>
+              <small>{firstDeath ? duration(firstDeath.timestamp - pull.startTime) : '—'}</small>
+            </div>
+            <div>
+              <span>Deep coverage</span>
+              <strong>
+                {deepResults.length}/{participatingPlayers.length}
+              </strong>
+              <small>players analyzed</small>
+            </div>
+            <div>
+              <span>Weighted GCD uptime</span>
+              <strong>{metricPercent(deepSummary.gcdUptimePercent)}</strong>
+              <small>
+                {deepSummary.gcdPlayerPullsMeasured
+                  ? `${deepSummary.gcdPlayerPullsMeasured} measured`
+                  : 'not measured'}
+              </small>
+            </div>
+            <div>
+              <span>Major findings</span>
+              <strong>{deepResults.length ? deepSummary.severeSuggestions : '—'}</strong>
+              <small>
+                {deepResults.length ? `${deepSummary.visibleSuggestions} visible total` : 'run deep analysis'}
+              </small>
+            </div>
+          </div>
+
+          <div className="detail-divider" />
+          <div className="pull-section-heading">
+            <div>
+              <h3>{player ? 'Player review' : 'Player-by-player review'}</h3>
+              <p className="muted small">
+                FFLogs output and xivanalysis execution findings for this specific pull.
+              </p>
+            </div>
+            {!player && report.source !== 'demo' && (
+              <button
+                className="button"
+                onClick={onAnalyzePull}
+                disabled={xivanalysisBatchRunning || deepResults.length >= participatingPlayers.length}
+              >
+                {xivanalysisBatchRunning ? (
+                  <>
+                    <LoaderCircle size={14} className="spin" />
+                    {xivanalysisBatchProgress
+                      ? `${xivanalysisBatchProgress.done}/${xivanalysisBatchProgress.total}`
+                      : 'Analyzing…'}
+                  </>
+                ) : deepResults.length >= participatingPlayers.length ? (
+                  'Deep analysis complete'
+                ) : (
+                  'Analyze all players'
+                )}
+              </button>
+            )}
+          </div>
+
+          {xivanalysisBatchError && <div className="notice error xiva-error">{xivanalysisBatchError}</div>}
+
+          {!player ? (
+            <div className="pull-player-review">
+              <div className="pull-player-review-head">
+                <span>Player</span>
+                <span>DPS / rDPS</span>
+                <span>Deaths</span>
+                <span>GCD uptime</span>
+                <span>Checklist</span>
+                <span>Findings</span>
+                <span />
+              </div>
+              {participatingPlayers.map((candidate) => {
+                const performance = analysis.performance.find((entry) => entry.playerId === candidate.id)
+                const deep = xivanalysisByPlayer[candidate.id]
+                const failed = failedChecklistCount(deep)
+                const severe = severeSuggestionCount(deep)
+                const visible =
+                  deep?.suggestions.filter((suggestion) => suggestion.severityName !== 'ignore').length ?? 0
+                return (
+                  <button
+                    key={candidate.id}
+                    className={`pull-player-review-row ${performance?.deaths || severe || failed ? 'has-findings' : ''}`}
+                    onClick={() => onSelectPlayer?.(candidate.id)}
+                  >
+                    <span className="pull-player-name">
+                      <JobBadge player={candidate} />
+                      <span>
+                        <strong>{candidate.name}</strong>
+                        <small>{candidate.job}</small>
+                      </span>
+                    </span>
+                    <span>
+                      <strong>{metricNumber(performance?.metrics.dps ?? null)}</strong>
+                      <small>{metricNumber(performance?.metrics.rdps ?? null)} rDPS</small>
+                    </span>
+                    <span>
+                      <strong>{performance?.deaths ?? '—'}</strong>
+                      <small>{performance?.firstDeath ? 'first death' : '—'}</small>
+                    </span>
+                    <span>
+                      <strong>{metricPercent(deep?.uptime.gcdUptimePercent ?? null)}</strong>
+                      <small>
+                        {deep?.uptime.gcdDowntimeMs == null
+                          ? deep
+                            ? 'delay unavailable'
+                            : 'not analyzed'
+                          : `${delay(deep.uptime.gcdDowntimeMs)} delay`}
+                      </small>
+                    </span>
+                    <span>
+                      <strong>
+                        {deep ? `${deep.checklist.length - failed}/${deep.checklist.length}` : '—'}
+                      </strong>
+                      <small>{deep ? `${failed} failed` : 'not analyzed'}</small>
+                    </span>
+                    <span>
+                      <strong>{deep ? severe : '—'}</strong>
+                      <small>{deep ? `${visible} visible` : 'not analyzed'}</small>
+                    </span>
+                    <span className="pull-player-review-action">
+                      Review <ChevronRight size={14} />
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          ) : (
+            <>
+              <button className="text-button pull-player-back" onClick={onClearPlayer}>
+                <ArrowLeft size={14} /> All players
+              </button>
+              <div className="xiva-player-heading">
+                <JobBadge player={player} />
+                <div>
+                  <strong>{player.name}</strong>
+                  <span>{player.job} · player × pull analysis</span>
+                </div>
+                {xivaLink && (
+                  <a href={xivaLink} target="_blank" rel="noreferrer" aria-label="Open in xivanalysis">
+                    <ExternalLink size={14} />
+                  </a>
+                )}
+              </div>
+
+              <PerformanceMetrics performance={selectedPerformance} />
+
+              {report.source === 'demo' ? (
+                <p className="muted small">Deep job analysis is not fabricated for synthetic demo data.</p>
+              ) : xivanalysisLoading && !selectedDeep ? (
+                <div className="xiva-state">
+                  <LoaderCircle size={17} className="spin" />
+                  Running xivanalysis for this player and pull…
+                </div>
+              ) : xivanalysisError && !selectedDeep ? (
+                <div className="notice error xiva-error">{xivanalysisError}</div>
+              ) : selectedDeep ? (
+                <XivanalysisDetail analysis={selectedDeep} />
+              ) : (
+                <p className="muted small">xivanalysis data has not been loaded for this player.</p>
+              )}
+            </>
+          )}
+
+          <div className="detail-divider" />
           <h3>
             Death timeline <span className="muted">({analysis.deaths.length})</span>
           </h3>
@@ -120,61 +362,6 @@ export function PullDetail({
               No casts recorded under the report’s Limit Break entities. Player-attributed LB actions may
               require job analysis.
             </p>
-          )}
-
-          <div className="detail-divider" />
-          <h3>Job performance</h3>
-          {!player ? (
-            <>
-              <p className="muted small">
-                Choose a participating player to run the pinned xivanalysis engine for this pull. Deep
-                analysis is loaded on demand rather than for every player automatically.
-              </p>
-              <div className="xiva-player-grid">
-                {report.players
-                  .filter((candidate) => pull.playerIds.includes(candidate.id))
-                  .map((candidate) => (
-                    <button
-                      key={candidate.id}
-                      className="xiva-player"
-                      onClick={() => onSelectPlayer?.(candidate.id)}
-                    >
-                      <JobBadge player={candidate} />
-                      <span>{candidate.name}</span>
-                      <ChevronRight size={14} />
-                    </button>
-                  ))}
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="xiva-player-heading">
-                <JobBadge player={player} />
-                <div>
-                  <strong>{player.name}</strong>
-                  <span>{player.job} · player × pull analysis</span>
-                </div>
-                {xivaLink && (
-                  <a href={xivaLink} target="_blank" rel="noreferrer" aria-label="Open in xivanalysis">
-                    <ExternalLink size={14} />
-                  </a>
-                )}
-              </div>
-              {report.source === 'demo' ? (
-                <p className="muted small">Deep job analysis is not fabricated for synthetic demo data.</p>
-              ) : xivanalysisLoading ? (
-                <div className="xiva-state">
-                  <LoaderCircle size={17} className="spin" />
-                  Running xivanalysis for this player and pull…
-                </div>
-              ) : xivanalysisError ? (
-                <div className="notice error xiva-error">{xivanalysisError}</div>
-              ) : xivanalysis ? (
-                <XivanalysisDetail analysis={xivanalysis} />
-              ) : (
-                <p className="muted small">xivanalysis data has not been loaded for this player.</p>
-              )}
-            </>
           )}
         </>
       )}
