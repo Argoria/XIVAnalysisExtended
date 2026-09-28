@@ -108,6 +108,38 @@ describe('FFLogs client', () => {
     )
   })
 
+  it('fetches the complete xivanalysis event stream without a data-type filter', async () => {
+    const { fetcher, client } = setup()
+    const cast = {
+      timestamp: 70000,
+      type: 'cast',
+      fight: 1,
+      sourceID: 1,
+      targetID: 20,
+      ability: { guid: 101, name: 'Attack', type: 128, abilityIcon: 'attack.png' },
+    }
+    fetcher
+      .mockResolvedValueOnce(token())
+      .mockResolvedValueOnce(data({ events: { data: [cast], nextPageTimestamp: 90000 } }))
+      .mockResolvedValueOnce(
+        data({
+          events: {
+            data: [{ ...cast, timestamp: 90000, sourceInstance: 2 }],
+            nextPageTimestamp: null,
+          },
+        }),
+      )
+
+    const result = await client.analysisEvents(fixture.code, pull)
+    expect(result).toHaveLength(2)
+    expect(result[0].ability?.guid).toBe(101)
+
+    const requests = fetcher.mock.calls.slice(1).map((call) => JSON.parse(String(call[1]?.body)))
+    expect(requests[0].query).toContain('useAbilityIDs: false')
+    expect(requests[0].query).not.toContain('dataType:')
+    expect(requests.map((request) => request.variables.start)).toEqual([60000, 90000])
+  })
+
   it('follows continuation timestamps exactly, without skipping events at the boundary', async () => {
     const { fetcher, client } = setup()
     fetcher

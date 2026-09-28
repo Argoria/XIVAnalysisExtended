@@ -7,14 +7,14 @@ export const fixture: RawReport = {
   endTime: 1700000500000,
   masterData: {
     actors: [
-      { id: 1, name: 'Tank', type: 'Player', subType: 'Gunbreaker' },
-      { id: 2, name: 'Healer', type: 'Player', subType: 'Astrologian' },
+      { id: 1, gameID: 1001, name: 'Tank', type: 'Player', subType: 'Gunbreaker' },
+      { id: 2, gameID: 1002, name: 'Healer', type: 'Player', subType: 'Astrologian' },
       { id: 3, name: 'Substitute', type: 'Player', subType: 'Scholar' },
       { id: 4, name: 'Unrelated player', type: 'Player', subType: 'Warrior' },
       { id: 10, name: 'Limit Break', type: 'Player', subType: 'LimitBreak' },
       { id: 11, name: 'Limit Break', type: 'NPC', subType: null },
-      { id: 12, name: 'Fairy', type: 'Pet', subType: null },
-      { id: 20, name: 'Boss', type: 'NPC', subType: 'Boss' },
+      { id: 12, gameID: 1659, name: 'Fairy', type: 'Pet', subType: null, petOwner: 2 },
+      { id: 20, gameID: 9999, name: 'Boss', type: 'NPC', subType: 'Boss' },
     ],
     abilities: [
       { gameID: 100, name: 'Raidwide' },
@@ -39,10 +39,14 @@ export const fixture: RawReport = {
       difficulty: 101,
       startTime: 60000,
       endTime: 160000,
+      combatTime: 90000,
       kill: false,
       bossPercentage: 40,
       fightPercentage: 65,
       friendlyPlayers: [1, 2, 10, 11, 12],
+      friendlyPets: [{ id: 12, gameID: 1659, instanceCount: 1, petOwner: 2 }],
+      enemyNPCs: [{ id: 20, gameID: 9999, instanceCount: 1 }],
+      gameZone: { id: 1234, name: 'Fixture Arena' },
     },
     {
       id: 2,
@@ -55,6 +59,8 @@ export const fixture: RawReport = {
       bossPercentage: null,
       fightPercentage: null,
       friendlyPlayers: [1, 3],
+      enemyNPCs: [{ id: 20, gameID: 9999, instanceCount: 1 }],
+      gameZone: { id: 1234, name: 'Fixture Arena' },
     },
   ],
 }
