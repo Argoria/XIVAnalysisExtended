@@ -52,7 +52,7 @@ require.extensions['.css'] = (mod) => {
   mod.exports = new Proxy(
     {},
     {
-      get: () => '#000',
+      get: (_target, property) => (property === '__esModule' ? false : '#000'),
     },
   )
 }
