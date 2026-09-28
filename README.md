@@ -50,7 +50,7 @@ Initialize the runner dependencies once after cloning or updating the submodule:
 npm run analysis:setup
 ```
 
-For a selected player × pull, the server now fetches the complete FFLogs v2 event stream, converts it through the versioned compatibility adapter, and executes upstream xivanalysis `adaptEvents` and `Parser`. The structured result currently exposes GCD uptime, GCD lost-time windows, weaving and interrupted-cast delay, checklist rule percentages, module errors, and suggestion severity/value data. The UI loads this path lazily when a specific player/pull is inspected.
+For a selected player × pull, the server now fetches the complete FFLogs v2 event stream, converts it through the versioned compatibility adapter, and executes upstream xivanalysis `adaptEvents` and `Parser`. The structured result currently exposes GCD uptime, GCD lost-time windows, weaving and interrupted-cast delay, checklist rule percentages, module errors, and suggestion severity/value data. The UI loads this path lazily when a specific player/pull is inspected. In the player view, an explicit **Analyze selected pulls** action reuses those cached results across the selected pulls and reports weighted GCD uptime from summed uptime/eligible milliseconds, lost-time totals, checklist pass counts, and severe suggestion counts.
 
 The application does **not** scrape xivanalysis' rendered React output. Opener correctness, DoT-specific uptime, mitigation opportunities, and boss-mechanic findings still need explicit module-specific extractors because upstream does not expose one uniform numeric contract for those concepts. Composite performance scoring remains intentionally absent until those metrics have support/coverage semantics.
 
