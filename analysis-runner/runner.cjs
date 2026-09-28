@@ -1,0 +1,509 @@
+#!/usr/bin/env node
+'use strict'
+
+const fs = require('node:fs')
+const path = require('node:path')
+const Module = require('node:module')
+
+const ROOT = path.resolve(__dirname, '..')
+const XIVA = path.join(ROOT, 'vendor', 'xivanalysis')
+const ENGINE_REVISION = process.env.XIVA_ENGINE_REVISION || 'f532855e635bdfb4211cec8128d582dadfdc6a75'
+
+function fail(message, details) {
+  process.stderr.write(JSON.stringify({ error: message, details: details || null }) + '\n')
+  process.exit(1)
+}
+
+if (!fs.existsSync(path.join(XIVA, 'src', 'parser', 'core', 'Parser.tsx'))) {
+  fail('xivanalysis submodule is not initialized', 'Run npm run analysis:setup.')
+}
+if (!fs.existsSync(path.join(XIVA, 'node_modules', '@babel', 'register'))) {
+  fail('xivanalysis dependencies are not installed', 'Run npm run analysis:setup.')
+}
+
+process.env.NODE_ENV = 'production'
+process.chdir(XIVA)
+
+if (!Object.hasOwn(Symbol, 'metadata')) {
+  Object.defineProperty(Symbol, 'metadata', {
+    value: Symbol.for('Symbol.metadata'),
+  })
+}
+process.env.NODE_PATH = [path.join(XIVA, 'src'), path.join(XIVA, 'node_modules'), process.env.NODE_PATH]
+  .filter(Boolean)
+  .join(path.delimiter)
+Module._initPaths()
+
+global.localStorage = {
+  getItem: () => null,
+  setItem: () => {},
+  removeItem: () => {},
+}
+
+global.WheelEvent = class WheelEvent {
+  static DOM_DELTA_PIXEL = 0
+  static DOM_DELTA_LINE = 1
+  static DOM_DELTA_PAGE = 2
+}
+const originalLoad = Module._load
+Module._load = function patchedLoad(request, parent, isMain) {
+  if (request === '@sentry/browser') {
+    return {
+      captureException: () => {},
+      withScope: (callback) =>
+        callback({
+          setTags: () => {},
+          setExtras: () => {},
+        }),
+    }
+  }
+  return originalLoad.call(this, request, parent, isMain)
+}
+
+require.extensions['.css'] = (mod) => {
+  mod.exports = new Proxy(
+    {},
+    {
+      get: (_target, property) => (property === '__esModule' ? false : '#000'),
+    },
+  )
+}
+
+const assetExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.ico', '.woff', '.woff2']
+for (const extension of assetExtensions) {
+  require.extensions[extension] = (mod, filename) => {
+    mod.exports = filename
+  }
+}
+
+const resolveFromVendor = (id) => require.resolve(id, { paths: [XIVA] })
+const presetEnvPackage = require.resolve('@babel/preset-env/package.json', { paths: [XIVA] })
+const classPropertiesPath = require.resolve('@babel/plugin-transform-class-properties', {
+  paths: [path.dirname(presetEnvPackage)],
+})
+
+// The pinned xivanalysis Babel config references this plugin without declaring it
+// directly. Under pnpm's strict layout it is only reachable through preset-env.
+// Expose that exact transitive copy to Node's resolver, then use upstream's config unchanged.
+const originalResolveFilename = Module._resolveFilename
+Module._resolveFilename = function patchedResolveFilename(request, parent, isMain, options) {
+  if (request === '@babel/plugin-transform-class-properties') return classPropertiesPath
+  return originalResolveFilename.call(this, request, parent, isMain, options)
+}
+
+require(resolveFromVendor('@babel/register'))({
+  extensions: ['.js', '.jsx', '.ts', '.tsx'],
+  cwd: XIVA,
+  root: XIVA,
+  configFile: path.join(XIVA, 'babel.config.js'),
+  cache: false,
+})
+
+const { GameEdition } = require(path.join(XIVA, 'src', 'data', 'EDITIONS.ts'))
+const { getEncounterKey } = require(path.join(XIVA, 'src', 'data', 'ENCOUNTERS.ts'))
+const { Team } = require(path.join(XIVA, 'src', 'report.ts'))
+const { adaptEvents } = require(
+  path.join(XIVA, 'src', 'reportSources', 'legacyFflogs', 'eventAdapter', 'adapter.ts'),
+)
+const { AVAILABLE_MODULES } = require(path.join(XIVA, 'src', 'parser', 'AVAILABLE_MODULES.ts'))
+const { Parser } = require(path.join(XIVA, 'src', 'parser', 'core', 'Parser.tsx'))
+const { Meta } = require(path.join(XIVA, 'src', 'parser', 'core', 'Meta.tsx'))
+
+const JOB_MODULE_DIRS = {
+  PALADIN: 'pld',
+  WARRIOR: 'war',
+  DARK_KNIGHT: 'drk',
+  GUNBREAKER: 'gnb',
+  WHITE_MAGE: 'whm',
+  SCHOLAR: 'sch',
+  ASTROLOGIAN: 'ast',
+  SAGE: 'sge',
+  MONK: 'mnk',
+  DRAGOON: 'drg',
+  NINJA: 'nin',
+  SAMURAI: 'sam',
+  REAPER: 'rpr',
+  VIPER: 'vpr',
+  BEASTMASTER: 'bst',
+  BARD: 'brd',
+  MACHINIST: 'mch',
+  DANCER: 'dnc',
+  BLACK_MAGE: 'blm',
+  SUMMONER: 'smn',
+  RED_MAGE: 'rdm',
+  PICTOMANCER: 'pct',
+  BLUE_MAGE: 'blu',
+}
+
+function directMeta(sourceMeta, modulesPath) {
+  const loaded = require(modulesPath)
+  if (!Array.isArray(loaded.modules)) {
+    throw new Error(`xivanalysis module bundle ${modulesPath} did not export a modules array.`)
+  }
+  return new Meta({
+    modules: () => Promise.resolve({ modules: loaded.modules }),
+    supportedPatches: sourceMeta.supportedPatches,
+    Description: sourceMeta.Description,
+    contributors: sourceMeta.contributors,
+    changelog: sourceMeta.changelog,
+  })
+}
+
+function coreMeta() {
+  return directMeta(AVAILABLE_MODULES.CORE, path.join(XIVA, 'src', 'parser', 'core', 'modules'))
+}
+
+function jobMeta(job) {
+  const sourceMeta = AVAILABLE_MODULES.JOBS[job]
+  const directory = JOB_MODULE_DIRS[job]
+  if (!sourceMeta || !directory) return null
+  return directMeta(sourceMeta, path.join(XIVA, 'src', 'parser', 'jobs', directory, 'modules'))
+}
+
+function bossMeta(encounterKey) {
+  if (!encounterKey) return null
+  const sourceMeta = AVAILABLE_MODULES.BOSSES[encounterKey]
+  if (!sourceMeta) return null
+
+  const candidates = [
+    ['dsr', require(path.join(XIVA, 'src', 'parser', 'bosses', 'dsr', 'index.ts')).DSR],
+    ['extrain', require(path.join(XIVA, 'src', 'parser', 'bosses', 'extrain', 'index.tsx')).EX_TRAIN],
+    ['fru', require(path.join(XIVA, 'src', 'parser', 'bosses', 'fru', 'index.tsx')).FRU],
+  ]
+  const match = candidates.find(([, meta]) => meta === sourceMeta)
+  if (!match) return null
+  return directMeta(sourceMeta, path.join(XIVA, 'src', 'parser', 'bosses', match[0], 'modules'))
+}
+
+// Keep browser detection in React/Scheduler on Node's server path during module loading.
+// Parser only uses window.location.reload on its production error-recovery path.
+global.window = { location: { reload: () => {} } }
+
+const JOB_KEYS = {
+  Paladin: 'PALADIN',
+  Warrior: 'WARRIOR',
+  DarkKnight: 'DARK_KNIGHT',
+  Gunbreaker: 'GUNBREAKER',
+  WhiteMage: 'WHITE_MAGE',
+  Scholar: 'SCHOLAR',
+  Astrologian: 'ASTROLOGIAN',
+  Sage: 'SAGE',
+  Monk: 'MONK',
+  Dragoon: 'DRAGOON',
+  Ninja: 'NINJA',
+  Samurai: 'SAMURAI',
+  Reaper: 'REAPER',
+  Viper: 'VIPER',
+  Beastmaster: 'BEASTMASTER',
+  Bard: 'BARD',
+  Machinist: 'MACHINIST',
+  Dancer: 'DANCER',
+  BlackMage: 'BLACK_MAGE',
+  Summoner: 'SUMMONER',
+  RedMage: 'RED_MAGE',
+  Pictomancer: 'PICTOMANCER',
+  BlueMage: 'BLUE_MAGE',
+}
+
+const compact = (value) => String(value || '').replace(/[\s_-]/g, '')
+
+function editionFor(language) {
+  switch (language) {
+    case 'kr':
+      return GameEdition.KOREAN
+    case 'cn':
+      return GameEdition.CHINESE
+    case 'ja':
+    case 'en':
+    case 'de':
+    case 'fr':
+    case null:
+    case undefined:
+      return GameEdition.GLOBAL
+    default:
+      return GameEdition.GLOBAL
+  }
+}
+
+function actorKind(actor) {
+  const guid = actor.gameID == null ? Number(actor.id) : Number(actor.gameID)
+  const id = Number(String(actor.id).split(':', 1)[0])
+  if (Number.isFinite(guid) && guid >= 1000000 && id === guid % 1000000) {
+    return 'unknown'
+  }
+  return Number.isFinite(guid) ? String(guid) : String(actor.id)
+}
+
+function jobFor(subType) {
+  return JOB_KEYS[compact(subType)] || 'UNKNOWN'
+}
+
+function buildEngineObjects(input) {
+  const baseActors = new Map()
+  for (const source of input.actors) {
+    baseActors.set(source.id, {
+      id: source.id,
+      kind: actorKind(source),
+      name: source.name,
+      team: source.team === 'FRIEND' ? Team.FRIEND : Team.FOE,
+      playerControlled: source.playerControlled,
+      job: source.playerControlled ? jobFor(source.subType) : 'UNKNOWN',
+    })
+  }
+
+  for (const source of input.actors) {
+    const actor = baseActors.get(source.id)
+    if (actor && source.ownerId) actor.owner = baseActors.get(source.ownerId)
+  }
+
+  const actors = []
+  for (const source of input.actors) {
+    const actor = baseActors.get(source.id)
+    if (!actor) continue
+    actors.push(actor)
+    const count = Math.max(1, Number(source.instanceCount) || 1)
+    for (let instance = 2; instance <= count; instance++) {
+      actors.push({ ...actor, id: `${actor.id}:${instance}` })
+    }
+  }
+
+  actors.push({
+    id: 'unknown',
+    kind: 'unknown',
+    name: 'Unknown',
+    team: Team.UNKNOWN,
+    playerControlled: false,
+    job: 'UNKNOWN',
+  })
+
+  const encounterKey = getEncounterKey('legacyFflogs', String(input.pull.encounterID))
+  const pull = {
+    id: input.pull.id,
+    timestamp: input.pull.timestamp,
+    duration: input.pull.duration,
+    ...(input.pull.progress == null ? {} : { progress: input.pull.progress }),
+    encounter: {
+      ...(encounterKey ? { key: encounterKey } : {}),
+      name: input.pull.name || `Encounter ${input.pull.encounterID}`,
+      duty: {
+        id: input.pull.gameZone?.id ?? -1,
+        name: input.pull.gameZone?.name ?? 'Unknown duty',
+      },
+    },
+    actors,
+  }
+  const report = {
+    timestamp: input.reportTimestamp,
+    edition: editionFor(input.reportLanguage),
+    name: input.reportTitle || input.reportCode,
+    pulls: [pull],
+    meta: {
+      source: 'legacyFflogs',
+      code: input.reportCode,
+    },
+  }
+
+  return { report, pull }
+}
+
+function severityName(value) {
+  switch (value) {
+    case 0:
+      return 'morbid'
+    case 1:
+      return 'major'
+    case 2:
+      return 'medium'
+    case 3:
+      return 'minor'
+    case 100:
+      return 'memes'
+    case Infinity:
+      return 'ignore'
+    default:
+      return 'unknown'
+  }
+}
+
+function finiteNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function describeNode(node) {
+  if (node == null || typeof node === 'boolean') return null
+  if (typeof node === 'string' || typeof node === 'number') return String(node)
+  if (Array.isArray(node)) {
+    const parts = node.map(describeNode).filter(Boolean)
+    return parts.length ? parts.join(' ') : null
+  }
+  if (typeof node !== 'object') return null
+
+  const props = node.props
+  if (props && typeof props === 'object') {
+    const children = describeNode(props.children)
+    if (children) return children
+    if (typeof props.action === 'string') return `action:${props.action}`
+    if (typeof props.status === 'string') return `status:${props.status}`
+    if (typeof props.item === 'string') return `item:${props.item}`
+    if (typeof props.id === 'string') return props.id
+  }
+  return typeof node.id === 'string' ? node.id : null
+}
+
+function issueSummary(module) {
+  if (!module || typeof module.getTotalDelay !== 'function' || typeof module.getIssueData !== 'function') {
+    return { delayMs: null, count: null }
+  }
+  const issues = module.getIssueData()
+  return {
+    delayMs: finiteNumber(module.getTotalDelay()),
+    count: Array.isArray(issues) ? issues.length : null,
+  }
+}
+
+function extractChecklist(parser) {
+  const checklist = parser.container.checklist
+  const rules = Array.isArray(checklist?.rules) ? checklist.rules : []
+  return rules.map((rule) => ({
+    label: describeNode(rule.name),
+    percent: finiteNumber(rule.percent) ?? 0,
+    target: finiteNumber(rule.target) ?? 100,
+    passed: Boolean(rule.passed),
+    requirements: Array.isArray(rule.requirements)
+      ? rule.requirements.map((requirement) => ({
+          label: describeNode(requirement.name),
+          percent: finiteNumber(requirement.percent) ?? 0,
+          value: finiteNumber(requirement.value),
+          target: finiteNumber(requirement.target) ?? 100,
+          weight: finiteNumber(requirement.weight) ?? 1,
+        }))
+      : [],
+  }))
+}
+
+function extractUptime(parser) {
+  const abc = parser.container.abc
+  const downtime = parser.container.downtime
+  const weaving = issueSummary(parser.container.weaving)
+  const interrupts = issueSummary(parser.container.interrupts)
+  const unavailableMs =
+    downtime && typeof downtime.getDowntime === 'function' ? finiteNumber(downtime.getDowntime()) : null
+  const gcdCount = finiteNumber(abc?.gcdsCounted)
+  const hasGcdData = gcdCount != null && gcdCount > 0
+  const gcdUptimeMs = hasGcdData ? finiteNumber(abc?.gcdUptime) : null
+  const gcdUptimePercent =
+    hasGcdData && typeof abc?.getUptimePercent === 'function' ? finiteNumber(abc.getUptimePercent()) : null
+  const gcdDowntime = issueSummary(abc)
+
+  return {
+    fightDurationMs: parser.pull.duration,
+    unavailableMs,
+    effectiveFightMs: unavailableMs == null ? null : Math.max(0, parser.pull.duration - unavailableMs),
+    gcdUptimeMs,
+    gcdUptimePercent,
+    gcdCount,
+    gcdDowntimeMs: gcdDowntime.delayMs,
+    gcdDowntimeCount: gcdDowntime.count,
+    weavingDelayMs: weaving.delayMs,
+    weavingIssueCount: weaving.count,
+    interruptedCastDelayMs: interrupts.delayMs,
+    interruptedCastCount: interrupts.count,
+  }
+}
+
+async function analyse(input, actorId) {
+  const { report, pull } = buildEngineObjects(input)
+  const actor = pull.actors.find((candidate) => candidate.id === actorId && candidate.playerControlled)
+  if (!actor) throw new Error(`Player actor ${actorId} is not available in pull ${pull.id}.`)
+
+  const adaptedEvents = adaptEvents(report, pull, input.events, input.pull.firstEventTimestamp)
+
+  let meta = coreMeta()
+  const encounterMeta = bossMeta(pull.encounter.key)
+  if (encounterMeta) meta = meta.merge(encounterMeta)
+  const actorMeta = jobMeta(actor.job)
+  if (actorMeta) meta = meta.merge(actorMeta)
+
+  const parser = new Parser({ meta, report, pull, actor })
+  try {
+    await parser.configure()
+  } catch (error) {
+    const constructors = await meta.getModules()
+    const tincture = constructors.find((ctor) => ctor.handle === 'tincture')
+    const dependencyHandles = tincture?.dependencies?.map(
+      (dependency) => `${dependency.prop}:${dependency.handle}`,
+    )
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(`${message} [tincture dependencies: ${JSON.stringify(dependencyHandles ?? [])}]`, {
+      cause: error,
+    })
+  }
+  parser.parseEvents({ events: adaptedEvents })
+
+  const moduleErrors = Object.fromEntries(
+    Object.entries(parser._moduleErrors || {}).map(([handle, error]) => [
+      handle,
+      error instanceof Error ? error.message : String(error),
+    ]),
+  )
+  const modules = Object.entries(parser.container).map(([handle, module]) => ({
+    handle,
+    type: module?.constructor?.name || 'Unknown',
+    error: moduleErrors[handle] || null,
+  }))
+
+  const suggestionsModule = parser.container.suggestions
+  const suggestions = Array.isArray(suggestionsModule?._suggestions)
+    ? suggestionsModule._suggestions.map((suggestion) => ({
+        severity: finiteNumber(suggestion.severity),
+        severityName: severityName(suggestion.severity),
+        value: finiteNumber(suggestion.value),
+        kind: suggestion.constructor?.name || 'Suggestion',
+        icon: typeof suggestion.icon === 'string' ? suggestion.icon : null,
+        content: describeNode(suggestion.content),
+        why: describeNode(suggestion.why),
+      }))
+    : []
+  const checklist = extractChecklist(parser)
+  const uptime = extractUptime(parser)
+
+  const eventTypes = {}
+  for (const event of adaptedEvents) {
+    eventTypes[event.type] = (eventTypes[event.type] || 0) + 1
+  }
+
+  return {
+    engineRevision: ENGINE_REVISION,
+    adapterVersion: input.adapterVersion,
+    reportCode: input.reportCode,
+    fightId: input.pull.fightId,
+    actorId,
+    job: actor.job,
+    encounterKey: pull.encounter.key || null,
+    adaptedEventCount: adaptedEvents.length,
+    eventTypes,
+    moduleCount: modules.length,
+    modules,
+    uptime,
+    checklist,
+    suggestions,
+  }
+}
+
+async function main() {
+  let raw = ''
+  for await (const chunk of process.stdin) raw += chunk
+  if (!raw.trim()) fail('runner input is empty')
+
+  const request = JSON.parse(raw)
+  if (!request || typeof request !== 'object' || !request.input || !request.actorId) {
+    fail('runner input must contain input and actorId')
+  }
+
+  const result = await analyse(request.input, String(request.actorId))
+  process.stdout.write(JSON.stringify(result))
+}
+
+main().catch((error) => {
+  fail(error instanceof Error ? error.message : String(error), error?.stack)
+})

@@ -1,5 +1,12 @@
 import { z } from 'zod'
-import { eventPageSchema, reportSchema, type RawEvent, type RawReport } from './schema'
+import {
+  analysisEventPageSchema,
+  eventPageSchema,
+  reportSchema,
+  type RawAnalysisEvent,
+  type RawEvent,
+  type RawReport,
+} from './schema'
 import type { DpsMetricKey, DpsMetrics, Pull } from '../../shared/types'
 
 const TOKEN_URL = 'https://www.fflogs.com/oauth/token'
@@ -17,14 +24,34 @@ export class FflogsError extends Error {
 export const REPORT_QUERY = `query Report($code: String!) {
   reportData { report(code: $code) {
     code title startTime endTime
-    fights { id encounterID name difficulty startTime endTime kill bossPercentage fightPercentage friendlyPlayers }
-    masterData { actors { id name type subType } abilities { gameID name } }
+    fights {
+      id encounterID name difficulty startTime endTime combatTime kill bossPercentage fightPercentage
+      friendlyPlayers enemyPlayers
+      friendlyNPCs { id gameID instanceCount groupCount petOwner }
+      friendlyPets { id gameID instanceCount groupCount petOwner }
+      enemyNPCs { id gameID instanceCount groupCount petOwner }
+      enemyPets { id gameID instanceCount groupCount petOwner }
+      gameZone { id name }
+    }
+    masterData {
+      lang
+      actors { id gameID name type subType petOwner }
+      abilities { gameID name type icon }
+    }
   } }
 }`
 export const EVENTS_QUERY = `query Events($code: String!, $fightIDs: [Int]!, $start: Float!, $end: Float!, $dataType: EventDataType!, $filter: String) {
   reportData { report(code: $code) {
     events(fightIDs: $fightIDs, startTime: $start, endTime: $end, dataType: $dataType,
       hostilityType: Friendlies, filterExpression: $filter, includeResources: true, limit: 10000) {
+      data nextPageTimestamp
+    }
+  } }
+}`
+export const ANALYSIS_EVENTS_QUERY = `query AnalysisEvents($code: String!, $fightIDs: [Int]!, $start: Float!, $end: Float!) {
+  reportData { report(code: $code) {
+    events(fightIDs: $fightIDs, startTime: $start, endTime: $end, includeResources: true,
+      useAbilityIDs: false, useActorIDs: true, limit: 10000) {
       data nextPageTimestamp
     }
   } }
@@ -236,6 +263,40 @@ export class FflogsClient {
       }
     }
     return byPlayer
+  }
+
+  async analysisEvents(code: string, pull: Pull, signal?: AbortSignal): Promise<RawAnalysisEvent[]> {
+    const events: RawAnalysisEvent[] = []
+    let start = pull.startTime
+    for (let page = 0; page < 100; page++) {
+      signal?.throwIfAborted()
+      const data = await this.query(
+        ANALYSIS_EVENTS_QUERY,
+        { code, fightIDs: [pull.id], start, end: pull.endTime },
+        signal,
+      )
+      const parsed = z
+        .object({
+          reportData: z.object({
+            report: z.object({ events: analysisEventPageSchema }).nullable(),
+          }),
+        })
+        .parse(data)
+      if (!parsed.reportData.report)
+        throw new FflogsError('Report became unavailable while loading xivanalysis events.', 404)
+      const batch = parsed.reportData.report.events
+      events.push(...batch.data)
+      const next = batch.nextPageTimestamp
+      if (next == null) return events
+      if (next <= start || next > pull.endTime || !batch.data.length)
+        throw new FflogsError(
+          'FFLogs returned inconsistent xivanalysis event pagination. No partial analysis was saved.',
+        )
+      start = next
+    }
+    throw new FflogsError(
+      'This pull exceeded the xivanalysis event page limit. No partial analysis was saved.',
+    )
   }
 
   async events(

@@ -4,6 +4,7 @@ import { z, ZodError } from 'zod'
 import { parseReportInput } from '../shared/report-input'
 import { FflogsError } from './fflogs/client'
 import type { ReportService } from './service'
+import { XivanalysisRunnerError } from './xivanalysis/runner'
 
 export function createApp(service: ReportService) {
   const app = express()
@@ -35,12 +36,34 @@ export function createApp(service: ReportService) {
     })
     res.json(await service.pull(code, id, req.query.refresh === '1', controller.signal))
   })
+  app.get('/api/reports/:code/pulls/:id/players/:actorId/xivanalysis', async (req, res) => {
+    const code = parseReportInput(req.params.code).code
+    const pullId = z.coerce.number().int().positive().safeParse(req.params.id)
+    const actorId = z.coerce.number().int().positive().safeParse(req.params.actorId)
+    if (!pullId.success || !actorId.success)
+      throw new FflogsError('Pull ID and player actor ID must be positive integers.', 400)
+
+    const controller = new AbortController()
+    res.on('close', () => {
+      if (!res.writableEnded) controller.abort()
+    })
+    res.json(
+      await service.xivanalysis(
+        code,
+        pullId.data,
+        actorId.data,
+        req.query.refresh === '1',
+        controller.signal,
+      ),
+    )
+  })
+
   app.use('/api', (_req, res) => res.status(404).json({ error: 'API route not found.' }))
   app.use(express.static(resolve('dist')))
   app.get('/{*path}', (_req, res) => res.sendFile(resolve('dist/index.html')))
   app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     if (res.destroyed) return
-    if (error instanceof FflogsError) {
+    if (error instanceof FflogsError || error instanceof XivanalysisRunnerError) {
       res.status(error.status).json({ error: error.message })
       return
     }

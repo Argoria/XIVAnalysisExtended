@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { FflogsClient } from '../server/fflogs/client'
 import { normalizeReport } from '../server/fflogs/normalize'
 import { ReportService } from '../server/service'
+import type { XivanalysisEngineRunner } from '../server/xivanalysis/runner'
 import { fixture, event } from './fixtures'
 
 const json = (body: unknown, status = 200, headers?: HeadersInit) =>
@@ -108,6 +109,38 @@ describe('FFLogs client', () => {
     )
   })
 
+  it('fetches the complete xivanalysis event stream without a data-type filter', async () => {
+    const { fetcher, client } = setup()
+    const cast = {
+      timestamp: 70000,
+      type: 'cast',
+      fight: 1,
+      sourceID: 1,
+      targetID: 20,
+      ability: { guid: 101, name: 'Attack', type: 128, abilityIcon: 'attack.png' },
+    }
+    fetcher
+      .mockResolvedValueOnce(token())
+      .mockResolvedValueOnce(data({ events: { data: [cast], nextPageTimestamp: 90000 } }))
+      .mockResolvedValueOnce(
+        data({
+          events: {
+            data: [{ ...cast, timestamp: 90000, sourceInstance: 2 }],
+            nextPageTimestamp: null,
+          },
+        }),
+      )
+
+    const result = await client.analysisEvents(fixture.code, pull)
+    expect(result).toHaveLength(2)
+    expect(result[0].ability?.guid).toBe(101)
+
+    const requests = fetcher.mock.calls.slice(1).map((call) => JSON.parse(String(call[1]?.body)))
+    expect(requests[0].query).toContain('useAbilityIDs: false')
+    expect(requests[0].query).not.toContain('dataType:')
+    expect(requests.map((request) => request.variables.start)).toEqual([60000, 90000])
+  })
+
   it('follows continuation timestamps exactly, without skipping events at the boundary', async () => {
     const { fetcher, client } = setup()
     fetcher
@@ -186,6 +219,122 @@ describe('report service', () => {
     })
     expect(events).toHaveBeenCalledTimes(5)
   })
+  it('loads and caches complete xivanalysis adapter input only after a successful event fetch', async () => {
+    const { client } = setup()
+    vi.spyOn(client, 'report').mockResolvedValue(fixture)
+    const analysisEvents = vi.spyOn(client, 'analysisEvents').mockResolvedValue([
+      {
+        timestamp: 80000,
+        type: 'cast',
+        fight: 1,
+        sourceID: 1,
+        targetID: 20,
+        ability: { guid: 101, name: 'Attack' },
+      },
+    ])
+    const service = new ReportService(client)
+
+    const first = await service.xivanalysisInput(fixture.code, 1)
+    const second = await service.xivanalysisInput(fixture.code, 1)
+
+    expect(second).toEqual(first)
+    expect(first.events).toHaveLength(1)
+    expect(first.adapterVersion).toMatch(/^fflogs-v2-legacy-compat\//)
+    expect(analysisEvents).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not cache failed xivanalysis event downloads', async () => {
+    const { client } = setup()
+    vi.spyOn(client, 'report').mockResolvedValue(fixture)
+    const analysisEvents = vi
+      .spyOn(client, 'analysisEvents')
+      .mockRejectedValueOnce(new Error('full stream failed'))
+      .mockResolvedValueOnce([])
+    const service = new ReportService(client)
+
+    await expect(service.xivanalysisInput(fixture.code, 1)).rejects.toThrow('full stream failed')
+    await expect(service.xivanalysisInput(fixture.code, 1)).resolves.toMatchObject({
+      reportCode: fixture.code,
+      events: [],
+    })
+    expect(analysisEvents).toHaveBeenCalledTimes(2)
+  })
+
+  it('runs and caches upstream xivanalysis per participating player', async () => {
+    const { client } = setup()
+    vi.spyOn(client, 'report').mockResolvedValue(fixture)
+    vi.spyOn(client, 'analysisEvents').mockResolvedValue([])
+    const analyze = vi.fn(async (input, actorId) => ({
+      engineRevision: 'f532855e635bdfb4211cec8128d582dadfdc6a75',
+      adapterVersion: input.adapterVersion,
+      reportCode: input.reportCode,
+      fightId: input.pull.fightId,
+      actorId,
+      job: 'GUNBREAKER',
+      encounterKey: null,
+      adaptedEventCount: 0,
+      eventTypes: {},
+      moduleCount: 1,
+      modules: [{ handle: 'test', type: 'Test', error: null }],
+      uptime: {
+        fightDurationMs: input.pull.duration,
+        unavailableMs: 0,
+        effectiveFightMs: input.pull.duration,
+        gcdUptimeMs: 85000,
+        gcdUptimePercent: 94.44,
+        gcdCount: 36,
+        gcdDowntimeMs: 5000,
+        gcdDowntimeCount: 2,
+        weavingDelayMs: 1200,
+        weavingIssueCount: 1,
+        interruptedCastDelayMs: 0,
+        interruptedCastCount: 0,
+      },
+      checklist: [
+        {
+          label: 'core.always-cast.title',
+          percent: 94.44,
+          target: 98,
+          passed: false,
+          requirements: [
+            {
+              label: 'core.always-cast.gcd-uptime',
+              percent: 94.44,
+              value: null,
+              target: 100,
+              weight: 1,
+            },
+          ],
+        },
+      ],
+      suggestions: [],
+    }))
+    const runner: XivanalysisEngineRunner = { analyze }
+    const service = new ReportService(client, runner)
+
+    const first = await service.xivanalysis(fixture.code, 1, 1)
+    const second = await service.xivanalysis(fixture.code, 1, 1)
+
+    expect(second).toEqual(first)
+    expect(first.job).toBe('GUNBREAKER')
+    expect(first.uptime.gcdUptimePercent).toBe(94.44)
+    expect(first.checklist[0].passed).toBe(false)
+    expect(analyze).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects xivanalysis for an actor that did not participate in the pull', async () => {
+    const { client } = setup()
+    vi.spyOn(client, 'report').mockResolvedValue(fixture)
+    vi.spyOn(client, 'analysisEvents').mockResolvedValue([])
+    const runner: XivanalysisEngineRunner = {
+      analyze: vi.fn(),
+    }
+    const service = new ReportService(client, runner)
+
+    await expect(service.xivanalysis(fixture.code, 1, 3)).rejects.toThrow('did not participate')
+    expect(runner.analyze).not.toHaveBeenCalled()
+  })
+
   it('rejects trash segments before requesting any events', async () => {
     const { client } = setup()
     vi.spyOn(client, 'report').mockResolvedValue(fixture)

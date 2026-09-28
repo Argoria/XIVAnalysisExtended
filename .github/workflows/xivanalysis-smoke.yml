@@ -1,0 +1,21 @@
+name: xivanalysis runner smoke
+
+on:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.14.0
+      - run: corepack enable
+      - run: cd vendor/xivanalysis && corepack pnpm install --frozen-lockfile
+      - run: node analysis-runner/runner.cjs < analysis-runner/smoke-input.json > /tmp/xiva-smoke.json
+      - run: |
+          cat /tmp/xiva-smoke.json
+          node -e "const r=require('/tmp/xiva-smoke.json'); if (r.engineRevision !== 'f532855e635bdfb4211cec8128d582dadfdc6a75' || r.actorId !== '1' || !Array.isArray(r.modules) || r.moduleCount < 1) process.exit(1); console.log(JSON.stringify({engineRevision:r.engineRevision,job:r.job,moduleCount:r.moduleCount,adaptedEventCount:r.adaptedEventCount}))"

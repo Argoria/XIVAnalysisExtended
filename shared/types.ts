@@ -119,3 +119,67 @@ export interface AnalysisSummary {
   cleanPulls: number
   kills: number
 }
+
+export interface XivanalysisUptimeMetrics {
+  fightDurationMs: number
+  unavailableMs: number | null
+  effectiveFightMs: number | null
+  gcdUptimeMs: number | null
+  gcdUptimePercent: number | null
+  gcdCount: number | null
+  gcdDowntimeMs: number | null
+  gcdDowntimeCount: number | null
+  weavingDelayMs: number | null
+  weavingIssueCount: number | null
+  interruptedCastDelayMs: number | null
+  interruptedCastCount: number | null
+}
+
+export interface XivanalysisChecklistRequirement {
+  label: string | null
+  percent: number
+  value: number | null
+  target: number
+  weight: number
+}
+
+export interface XivanalysisChecklistRule {
+  label: string | null
+  percent: number
+  target: number
+  passed: boolean
+  requirements: XivanalysisChecklistRequirement[]
+}
+
+export interface XivanalysisSuggestion {
+  severity: number | null
+  severityName: string
+  value: number | null
+  kind: string
+  icon: string | null
+  content: string | null
+  why: string | null
+}
+
+export interface XivanalysisModuleSummary {
+  handle: string
+  type: string
+  error: string | null
+}
+
+export interface XivanalysisPlayerAnalysis {
+  engineRevision: string
+  adapterVersion: string
+  reportCode: string
+  fightId: number
+  actorId: string
+  job: string
+  encounterKey: string | null
+  adaptedEventCount: number
+  eventTypes: Record<string, number>
+  moduleCount: number
+  modules: XivanalysisModuleSummary[]
+  uptime: XivanalysisUptimeMetrics
+  checklist: XivanalysisChecklistRule[]
+  suggestions: XivanalysisSuggestion[]
+}

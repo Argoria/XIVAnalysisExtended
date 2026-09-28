@@ -22,13 +22,17 @@ import {
   X,
 } from 'lucide-react'
 import { summarize } from '../shared/analysis'
+import { summarizeXivanalysis } from '../shared/xivanalysis'
 import { demoAnalyses, demoReport } from '../shared/demo'
 import { parseReportInput } from '../shared/report-input'
-import type { Pull, PullAnalysis, Report } from '../shared/types'
+import type { Pull, PullAnalysis, Report, XivanalysisPlayerAnalysis } from '../shared/types'
 import { api } from './api'
 import { duration, percent } from './format'
 
 type View = 'session' | 'players' | 'pulls' | 'matrix'
+type DeepTarget = { pullId: number; playerId: number }
+type DeepBatchProgress = { scope: string; done: number; total: number }
+type DeepBatchError = { scope: string; message: string }
 const views: { id: View; label: string; icon: typeof Activity }[] = [
   { id: 'session', label: 'Session overview', icon: LayoutDashboard },
   { id: 'players', label: 'By player', icon: Users },
@@ -36,6 +40,7 @@ const views: { id: View; label: string; icon: typeof Activity }[] = [
   { id: 'matrix', label: 'Player × pull', icon: Layers3 },
 ]
 const encounterKey = (pull: Pull) => `${pull.encounterID}:${pull.difficulty ?? 'unknown'}`
+const xivanalysisKey = (pullId: number, playerId: number) => `${pullId}:${playerId}`
 
 export function App() {
   const [report, setReport] = useState<Report>(demoReport)
@@ -53,12 +58,20 @@ export function App() {
   const [revision, setRevision] = useState(0)
   const [focusedPull, setFocusedPull] = useState<number | null>(null)
   const [focusedPlayer, setFocusedPlayer] = useState<number | null>(null)
-  const [playerPullSort, setPlayerPullSort] = useState<'boss' | 'dps' | 'fewest-deaths' | 'most-deaths'>(
-    'boss',
-  )
+  const [playerPullSort, setPlayerPullSort] = useState<
+    'boss' | 'dps' | 'uptime' | 'fewest-deaths' | 'most-deaths'
+  >('boss')
   const [helpOpen, setHelpOpen] = useState(false)
+  const [xivanalysis, setXivanalysis] = useState<XivanalysisPlayerAnalysis | null>(null)
+  const [xivanalysisError, setXivanalysisError] = useState('')
+  const [xivanalysisLoading, setXivanalysisLoading] = useState(false)
+  const [deepAnalyses, setDeepAnalyses] = useState<Record<string, XivanalysisPlayerAnalysis>>({})
+  const [deepBatchProgress, setDeepBatchProgress] = useState<DeepBatchProgress | null>(null)
+  const [deepBatchError, setDeepBatchError] = useState<DeepBatchError | null>(null)
   const loadController = useRef<AbortController | null>(null)
   const analysisController = useRef<AbortController | null>(null)
+  const xivanalysisController = useRef<AbortController | null>(null)
+  const deepBatchController = useRef<AbortController | null>(null)
   const detailRef = useRef<HTMLElement>(null)
   useEffect(() => {
     api
@@ -100,6 +113,50 @@ export function App() {
     // Cache updates must not restart in-flight workers. Selection and revision own the lifecycle.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [report, selectionKey, revision])
+
+  useEffect(() => {
+    xivanalysisController.current?.abort()
+    setXivanalysis(null)
+    setXivanalysisError('')
+    setXivanalysisLoading(false)
+
+    if (report.source === 'demo' || focusedPull == null || focusedPlayer == null) return
+    const pull = report.pulls.find((candidate) => candidate.id === focusedPull)
+    if (!pull?.playerIds.includes(focusedPlayer)) return
+
+    const key = xivanalysisKey(focusedPull, focusedPlayer)
+    const cached = deepAnalyses[key]
+    if (cached) {
+      setXivanalysis(cached)
+      return
+    }
+
+    const controller = new AbortController()
+    xivanalysisController.current = controller
+    setXivanalysisLoading(true)
+    api
+      .xivanalysis(report.code, focusedPull, focusedPlayer, false, controller.signal)
+      .then((result) => {
+        if (!controller.signal.aborted) {
+          setXivanalysis(result)
+          setDeepAnalyses((previous) => ({ ...previous, [key]: result }))
+        }
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted)
+          setXivanalysisError(error instanceof Error ? error.message : 'xivanalysis failed.')
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setXivanalysisLoading(false)
+      })
+    return () => controller.abort()
+  }, [report, focusedPull, focusedPlayer, deepAnalyses])
+
+  useEffect(() => {
+    deepBatchController.current?.abort()
+    setDeepBatchProgress(null)
+    setDeepBatchError(null)
+  }, [report.code, selectionKey])
 
   useEffect(() => {
     if (focusedPull != null || helpOpen) {
@@ -154,14 +211,67 @@ export function App() {
   const performanceFor = (fightId: number, playerId: number) =>
     analyses[fightId]?.performance.find((entry) => entry.playerId === playerId)
 
+  const deepSummaryByPlayer = useMemo(() => {
+    const selectedPullIds = new Set(pulls.map((pull) => pull.id))
+    const grouped = new Map<number, XivanalysisPlayerAnalysis[]>()
+    for (const result of Object.values(deepAnalyses)) {
+      if (!selectedPullIds.has(result.fightId)) continue
+      const actorId = Number(result.actorId)
+      if (!Number.isFinite(actorId)) continue
+      const entries = grouped.get(actorId) ?? []
+      entries.push(result)
+      grouped.set(actorId, entries)
+    }
+    return new Map(
+      report.players.map((player) => [player.id, summarizeXivanalysis(grouped.get(player.id) ?? [])]),
+    )
+  }, [deepAnalyses, pulls, report.players])
+  const focusedDeepSummary = focusedPlayer == null ? null : (deepSummaryByPlayer.get(focusedPlayer) ?? null)
+  const focusedParticipatingPulls =
+    focusedPlayer == null ? [] : pulls.filter((pull) => pull.playerIds.includes(focusedPlayer))
+  const deepSummaryByPull = useMemo(() => {
+    const grouped = new Map<number, XivanalysisPlayerAnalysis[]>()
+    for (const result of Object.values(deepAnalyses)) {
+      const entries = grouped.get(result.fightId) ?? []
+      entries.push(result)
+      grouped.set(result.fightId, entries)
+    }
+    return new Map(
+      pulls.map((pull) => [pull.id, summarizeXivanalysis(grouped.get(pull.id) ?? [])]),
+    )
+  }, [deepAnalyses, pulls])
+  const selectedDeepResults = useMemo(() => {
+    const selectedPullIds = new Set(pulls.map((pull) => pull.id))
+    return Object.values(deepAnalyses).filter((result) => selectedPullIds.has(result.fightId))
+  }, [deepAnalyses, pulls])
+  const deepSessionSummary = useMemo(
+    () => summarizeXivanalysis(selectedDeepResults),
+    [selectedDeepResults],
+  )
+  const deepSessionTargets = pulls.flatMap((pull) =>
+    pull.playerIds.map((playerId) => ({ pullId: pull.id, playerId })),
+  )
+  const playerBatchScope = focusedPlayer == null ? null : `player:${focusedPlayer}`
+  const sessionBatchScope = 'session'
+  const isDeepBatchRunning = (scope: string) =>
+    deepBatchProgress?.scope === scope && deepBatchProgress.done < deepBatchProgress.total
+
   function installReport(next: Report, fightId?: number | 'last') {
     analysisController.current?.abort()
+    xivanalysisController.current?.abort()
+    deepBatchController.current?.abort()
     const initial = fightId === 'last' ? next.pulls.at(-1) : next.pulls.find((p) => p.id === fightId)
     setReport(next)
     setEncounter(initial ? encounterKey(initial) : 'all')
     setSelected(initial ? [initial.id] : next.pulls.map((p) => p.id))
     setAnalyses(next.source === 'demo' ? Object.fromEntries(demoAnalyses.map((a) => [a.fightId, a])) : {})
     setFailures({})
+    setDeepAnalyses({})
+    setDeepBatchProgress(null)
+    setDeepBatchError(null)
+    setXivanalysis(null)
+    setXivanalysisError('')
+    setXivanalysisLoading(false)
     setRevision(0)
     setFocusedPlayer(null)
     setFocusedPull(null)
@@ -210,6 +320,8 @@ export function App() {
     setLoadingReport(true)
     setLoadError('')
     analysisController.current?.abort()
+    xivanalysisController.current?.abort()
+    deepBatchController.current?.abort()
     loadController.current?.abort()
     const controller = new AbortController()
     loadController.current = controller
@@ -219,6 +331,12 @@ export function App() {
         setReport(next)
         setAnalyses({})
         setFailures({})
+        setDeepAnalyses({})
+        setDeepBatchProgress(null)
+        setDeepBatchError(null)
+        setXivanalysis(null)
+        setXivanalysisError('')
+        setXivanalysisLoading(false)
         setRevision((v) => v + 1)
       }
     } catch (error) {
@@ -229,6 +347,91 @@ export function App() {
     } finally {
       if (!controller.signal.aborted) setLoadingReport(false)
     }
+  }
+
+  async function analyzeDeepTargets(targets: DeepTarget[], scope: string) {
+    if (report.source === 'demo') return
+
+    xivanalysisController.current?.abort()
+    setXivanalysisLoading(false)
+    deepBatchController.current?.abort()
+    const controller = new AbortController()
+    deepBatchController.current = controller
+
+    const uniqueTargets = [
+      ...new Map(targets.map((target) => [xivanalysisKey(target.pullId, target.playerId), target])).values(),
+    ]
+    const pending = uniqueTargets.filter(
+      (target) => !deepAnalyses[xivanalysisKey(target.pullId, target.playerId)],
+    )
+    const alreadyDone = uniqueTargets.length - pending.length
+    setDeepBatchProgress({ scope, done: alreadyDone, total: uniqueTargets.length })
+    setDeepBatchError(null)
+    if (!pending.length) return
+
+    let cursor = 0
+    let failed = 0
+    async function worker() {
+      while (cursor < pending.length && !controller.signal.aborted) {
+        const target = pending[cursor++]
+        const key = xivanalysisKey(target.pullId, target.playerId)
+        try {
+          const result = await api.xivanalysis(
+            report.code,
+            target.pullId,
+            target.playerId,
+            false,
+            controller.signal,
+          )
+          if (!controller.signal.aborted) {
+            setDeepAnalyses((previous) => ({ ...previous, [key]: result }))
+            if (focusedPull === target.pullId && focusedPlayer === target.playerId) {
+              setXivanalysis(result)
+            }
+          }
+        } catch (error) {
+          if (!controller.signal.aborted) {
+            failed++
+            setDeepBatchError({
+              scope,
+              message: `${failed} deep ${failed === 1 ? 'analysis' : 'analyses'} failed: ${
+                error instanceof Error ? error.message : 'xivanalysis failed.'
+              }`,
+            })
+          }
+        } finally {
+          if (!controller.signal.aborted) {
+            setDeepBatchProgress((previous) =>
+              previous?.scope === scope ? { ...previous, done: previous.done + 1 } : previous,
+            )
+          }
+        }
+      }
+    }
+
+    await Promise.all([worker(), worker()])
+  }
+
+  async function analyzeFocusedPlayerPulls() {
+    if (focusedPlayer == null || playerBatchScope == null) return
+    await analyzeDeepTargets(
+      focusedParticipatingPulls.map((pull) => ({
+        pullId: pull.id,
+        playerId: focusedPlayer,
+      })),
+      playerBatchScope,
+    )
+  }
+
+  async function analyzePullPlayers(pull: Pull) {
+    await analyzeDeepTargets(
+      pull.playerIds.map((playerId) => ({ pullId: pull.id, playerId })),
+      `pull:${pull.id}`,
+    )
+  }
+
+  async function analyzeSelectedSession() {
+    await analyzeDeepTargets(deepSessionTargets, sessionBatchScope)
   }
 
   return (
@@ -504,7 +707,10 @@ export function App() {
                         <button
                           key={p.id}
                           className={`chart-column ${p.kill ? 'cleared' : ''}`}
-                          onClick={() => setFocusedPull(p.id)}
+                          onClick={() => {
+                            setFocusedPlayer(null)
+                            setFocusedPull(p.id)
+                          }}
                           aria-label={`Inspect pull ${p.id}, ${percent(p.fightRemaining)} fight remaining`}
                         >
                           <span className="chart-value">
@@ -627,21 +833,63 @@ export function App() {
                       </button>
                     </section>
                   </div>
-                  <section className="next-step">
+                  <section className="next-step deep-session">
                     <div className="next-icon">
                       <Shield size={23} />
                     </div>
-                    <div>
-                      <span className="eyebrow">DEEPER JOB ANALYSIS</span>
-                      <h3>Deaths tell you where to look. Job metrics explain more.</h3>
-                      <p>
-                        Opener checks, DoT uptime, and mitigation opportunities are the next integration
-                        stage.
-                      </p>
+                    <div className="deep-session-body">
+                      <span className="eyebrow">DEEP EXECUTION COVERAGE</span>
+                      <h3>
+                        {deepSessionSummary.playerPullsAnalyzed} / {deepSessionTargets.length} player × pull
+                        analyses loaded
+                      </h3>
+                      {deepSessionSummary.playerPullsAnalyzed ? (
+                        <p>
+                          Weighted GCD uptime{' '}
+                          <strong>
+                            {deepSessionSummary.gcdUptimePercent == null
+                              ? '—'
+                              : `${deepSessionSummary.gcdUptimePercent.toFixed(1)}%`}
+                          </strong>{' '}
+                          · checklist {deepSessionSummary.checklistPassed}/{deepSessionSummary.checklistRules}{' '}
+                          · {deepSessionSummary.severeSuggestions} major findings
+                        </p>
+                      ) : (
+                        <p>
+                          Deep analysis is opt-in. Run the pinned xivanalysis engine only when you want
+                          execution metrics across the selected session.
+                        </p>
+                      )}
+                      {deepBatchError?.scope === sessionBatchScope && (
+                        <p className="deep-inline-error">{deepBatchError.message}</p>
+                      )}
                     </div>
-                    <button className="button" onClick={() => setHelpOpen(true)}>
-                      Analysis coverage <ArrowRight size={15} />
-                    </button>
+                    <div className="next-step-actions">
+                      <button
+                        className="button"
+                        disabled={
+                          isDemo ||
+                          isDeepBatchRunning(sessionBatchScope) ||
+                          deepSessionSummary.playerPullsAnalyzed >= deepSessionTargets.length
+                        }
+                        onClick={() => void analyzeSelectedSession()}
+                      >
+                        {isDeepBatchRunning(sessionBatchScope) ? (
+                          <>
+                            <LoaderCircle size={14} className="spin" />
+                            {deepBatchProgress?.scope === sessionBatchScope ? deepBatchProgress.done : 0}/
+                            {deepBatchProgress?.scope === sessionBatchScope ? deepBatchProgress.total : 0}
+                          </>
+                        ) : deepSessionSummary.playerPullsAnalyzed >= deepSessionTargets.length ? (
+                          'Session analyzed'
+                        ) : (
+                          'Analyze selected session'
+                        )}
+                      </button>
+                      <button className="text-button" onClick={() => setHelpOpen(true)}>
+                        Coverage <ArrowRight size={14} />
+                      </button>
+                    </div>
                   </section>
                 </>
               )}
@@ -675,6 +923,8 @@ export function App() {
                           <th>Deaths / pull</th>
                           <th>Avg DPS</th>
                           <th>Best DPS</th>
+                          <th>GCD uptime</th>
+                          <th>Deep pulls</th>
                           <th>First deaths</th>
                           <th>Death-free pulls</th>
                         </tr>
@@ -703,6 +953,14 @@ export function App() {
                               <td>
                                 {p.bestDps.dps == null ? '—' : Math.round(p.bestDps.dps).toLocaleString()}
                               </td>
+                              <td>
+                                {deepSummaryByPlayer.get(p.id)?.gcdUptimePercent == null
+                                  ? '—'
+                                  : `${deepSummaryByPlayer.get(p.id)!.gcdUptimePercent!.toFixed(1)}%`}
+                              </td>
+                              <td>
+                                {deepSummaryByPlayer.get(p.id)?.playerPullsAnalyzed ?? 0} / {p.pulls}
+                              </td>
                               <td>{p.firstDeaths}</td>
                               <td>
                                 {p.deathFreePulls} / {p.pulls}
@@ -717,17 +975,108 @@ export function App() {
                   </div>
                   {focusedPlayer != null && (
                     <div className="player-history">
-                      <h3>Pull-by-pull history</h3>
-                      <select
-                        aria-label="Sort player pulls"
-                        value={playerPullSort}
-                        onChange={(e) => setPlayerPullSort(e.target.value as typeof playerPullSort)}
-                      >
-                        <option value="boss">Best boss HP</option>
-                        <option value="dps">Highest DPS</option>
-                        <option value="fewest-deaths">Fewest deaths</option>
-                        <option value="most-deaths">Most deaths</option>
-                      </select>
+                      <div className="deep-rollup">
+                        <div className="deep-rollup-heading">
+                          <div>
+                            <span className="eyebrow">XIVANALYSIS COVERAGE</span>
+                            <h3>Execution across selected pulls</h3>
+                          </div>
+                          <button
+                            className="button"
+                            disabled={
+                              isDemo ||
+                              playerBatchScope != null && isDeepBatchRunning(playerBatchScope) ||
+                              (focusedDeepSummary?.playerPullsAnalyzed ?? 0) >= focusedParticipatingPulls.length
+                            }
+                            onClick={() => void analyzeFocusedPlayerPulls()}
+                          >
+                            {playerBatchScope != null && isDeepBatchRunning(playerBatchScope) ? (
+                              <>
+                                <LoaderCircle size={14} className="spin" />
+                                {deepBatchProgress?.scope === playerBatchScope ? deepBatchProgress.done : 0}/
+                                {deepBatchProgress?.scope === playerBatchScope ? deepBatchProgress.total : 0}
+                              </>
+                            ) : (focusedDeepSummary?.playerPullsAnalyzed ?? 0) >=
+                              focusedParticipatingPulls.length ? (
+                              'Deep analysis complete'
+                            ) : (
+                              'Analyze selected pulls'
+                            )}
+                          </button>
+                        </div>
+                        {isDemo ? (
+                          <p className="muted small">Deep analysis is disabled for synthetic demo data.</p>
+                        ) : (
+                          <div className="deep-rollup-metrics">
+                            <div>
+                              <span>Weighted GCD uptime</span>
+                              <strong>
+                                {focusedDeepSummary?.gcdUptimePercent == null
+                                  ? '—'
+                                  : `${focusedDeepSummary.gcdUptimePercent.toFixed(1)}%`}
+                              </strong>
+                              <small>
+                                {focusedDeepSummary?.gcdPlayerPullsMeasured ?? 0} measured /{' '}
+                                {focusedParticipatingPulls.length} selected pulls
+                              </small>
+                            </div>
+                            <div>
+                              <span>GCD delay</span>
+                              <strong>
+                                {focusedDeepSummary?.gcdDowntimeMs == null
+                                  ? '—'
+                                  : duration(focusedDeepSummary.gcdDowntimeMs)}
+                              </strong>
+                              <small>
+                                {focusedDeepSummary?.gcdDowntimeCount == null
+                                  ? 'Not measured'
+                                  : `${focusedDeepSummary.gcdDowntimeCount} issues`}
+                              </small>
+                            </div>
+                            <div>
+                              <span>Checklist rules</span>
+                              <strong>
+                                {(focusedDeepSummary?.playerPullsAnalyzed ?? 0) === 0
+                                  ? '—'
+                                  : `${focusedDeepSummary!.checklistPassed} / ${focusedDeepSummary!.checklistRules}`}
+                              </strong>
+                              <small>passed / evaluated</small>
+                            </div>
+                            <div>
+                              <span>Major findings</span>
+                              <strong>
+                                {(focusedDeepSummary?.playerPullsAnalyzed ?? 0) === 0
+                                  ? '—'
+                                  : focusedDeepSummary!.severeSuggestions}
+                              </strong>
+                              <small>
+                                {(focusedDeepSummary?.playerPullsAnalyzed ?? 0) === 0
+                                  ? 'Not analyzed'
+                                  : `${focusedDeepSummary!.visibleSuggestions} visible suggestions`}
+                              </small>
+                            </div>
+                          </div>
+                        )}
+                        {deepBatchError?.scope === playerBatchScope && (
+                          <div className="notice error deep-rollup-error" role="alert">
+                            {deepBatchError.message}
+                          </div>
+                        )}
+                      </div>
+                      <div className="player-history-heading">
+                        <h3>Pull-by-pull history</h3>
+                        <select
+                          aria-label="Sort player pulls"
+                          value={playerPullSort}
+                          onChange={(e) => setPlayerPullSort(e.target.value as typeof playerPullSort)}
+                        >
+                          <option value="boss">Best boss HP</option>
+                          <option value="dps">Highest DPS</option>
+                          <option value="uptime">Highest GCD uptime</option>
+                          <option value="fewest-deaths">Fewest deaths</option>
+                          <option value="most-deaths">Most deaths</option>
+                        </select>
+                      </div>
                       {[...pulls]
                         .filter((p) => p.playerIds.includes(focusedPlayer))
                         .sort((a, b) => {
@@ -740,6 +1089,16 @@ export function App() {
                             return (
                               (bp.metrics.dps ?? -Infinity) - (ap.metrics.dps ?? -Infinity) || a.id - b.id
                             )
+                          if (playerPullSort === 'uptime') {
+                            const aUptime =
+                              deepAnalyses[xivanalysisKey(a.id, focusedPlayer)]?.uptime.gcdUptimePercent
+                            const bUptime =
+                              deepAnalyses[xivanalysisKey(b.id, focusedPlayer)]?.uptime.gcdUptimePercent
+                            if (aUptime == null && bUptime == null) return a.id - b.id
+                            if (aUptime == null) return 1
+                            if (bUptime == null) return -1
+                            return bUptime - aUptime || a.id - b.id
+                          }
                           if (playerPullSort === 'fewest-deaths')
                             return (
                               ap.deaths - bp.deaths ||
@@ -761,6 +1120,7 @@ export function App() {
                         })
                         .map((p) => {
                           const performance = performanceFor(p.id, focusedPlayer)
+                          const deep = deepAnalyses[xivanalysisKey(p.id, focusedPlayer)]
                           return (
                             <button key={p.id} onClick={() => setFocusedPull(p.id)}>
                               <span>
@@ -768,9 +1128,13 @@ export function App() {
                               </span>
                               <span>
                                 {performance
-                                  ? `${performance.metrics.dps == null ? '—' : Math.round(performance.metrics.dps).toLocaleString()} DPS · ${performance.deaths} ${
-                                      performance.deaths === 1 ? 'death' : 'deaths'
-                                    } · ${percent(performance.bossRemaining)} boss HP`
+                                  ? `${performance.metrics.dps == null ? '—' : Math.round(performance.metrics.dps).toLocaleString()} DPS · ${
+                                      deep?.uptime.gcdUptimePercent == null
+                                        ? 'uptime —'
+                                        : `${deep.uptime.gcdUptimePercent.toFixed(1)}% uptime`
+                                    } · ${performance.deaths} ${performance.deaths === 1 ? 'death' : 'deaths'} · ${percent(
+                                      performance.bossRemaining,
+                                    )} boss HP`
                                   : 'Not analyzed'}{' '}
                                 <ChevronRight size={15} />
                               </span>
@@ -799,6 +1163,8 @@ export function App() {
                           <th>Boss HP left</th>
                           <th>Deaths</th>
                           <th>First death</th>
+                          <th>GCD uptime</th>
+                          <th>Deep players</th>
                           <th />
                         </tr>
                       </thead>
@@ -806,6 +1172,8 @@ export function App() {
                         {pulls.map((p) => {
                           const analysis = analyses[p.id]
                           const first = analysis?.deaths.find((d) => d.firstDeath)
+                          const deep = deepSummaryByPull.get(p.id)
+                          const pullBatchScope = `pull:${p.id}`
                           return (
                             <tr key={p.id}>
                               <td>
@@ -832,9 +1200,45 @@ export function App() {
                                     : '—'}
                               </td>
                               <td>
-                                <button className="text-button" onClick={() => setFocusedPull(p.id)}>
-                                  Inspect <ArrowRight size={14} />
-                                </button>
+                                {deep?.gcdUptimePercent == null
+                                  ? '—'
+                                  : `${deep.gcdUptimePercent.toFixed(1)}%`}
+                              </td>
+                              <td>
+                                {deep?.playerPullsAnalyzed ?? 0} / {p.playerIds.length}
+                              </td>
+                              <td>
+                                <div className="table-actions">
+                                  <button
+                                    className="text-button"
+                                    onClick={() => {
+                                      setFocusedPlayer(null)
+                                      setFocusedPull(p.id)
+                                    }}
+                                  >
+                                    Inspect <ArrowRight size={14} />
+                                  </button>
+                                  <button
+                                    className="text-button"
+                                    disabled={
+                                      isDemo ||
+                                      isDeepBatchRunning(pullBatchScope) ||
+                                      (deep?.playerPullsAnalyzed ?? 0) >= p.playerIds.length
+                                    }
+                                    onClick={() => void analyzePullPlayers(p)}
+                                  >
+                                    {isDeepBatchRunning(pullBatchScope)
+                                      ? `${deepBatchProgress?.scope === pullBatchScope ? deepBatchProgress.done : 0}/${
+                                          deepBatchProgress?.scope === pullBatchScope ? deepBatchProgress.total : 0
+                                        }`
+                                      : (deep?.playerPullsAnalyzed ?? 0) >= p.playerIds.length
+                                        ? 'Deep ✓'
+                                        : 'Analyze'}
+                                  </button>
+                                </div>
+                                {deepBatchError?.scope === pullBatchScope && (
+                                  <small className="table-error">{deepBatchError.message}</small>
+                                )}
                               </td>
                             </tr>
                           )
@@ -884,7 +1288,10 @@ export function App() {
                                       <button
                                         aria-label={`${player.name}, pull ${p.id}, ${count == null ? 'not analyzed' : `${count} deaths`}`}
                                         className={`matrix-cell ${count == null ? 'unloaded' : count ? 'bad' : 'good'}`}
-                                        onClick={() => setFocusedPull(p.id)}
+                                        onClick={() => {
+                                          setFocusedPlayer(player.id)
+                                          setFocusedPull(p.id)
+                                        }}
                                       >
                                         {count ?? '…'}
                                       </button>
@@ -900,9 +1307,9 @@ export function App() {
                     </table>
                   </div>
                   <div className="card-footer">
-                    FFLogs DPS, rDPS, nDPS, and cDPS are retained per player and pull. Opener, mitigation, DoT
-                    uptime, mechanics, and composite performance scores remain unavailable until xivanalysis
-                    is connected.
+                    FFLogs DPS-family metrics are retained per player and pull. Select a matrix cell to run
+                    xivanalysis for that player and inspect GCD uptime, lost-time issues, checklist rules, and
+                    suggestions.
                   </div>
                 </section>
               )}
@@ -953,6 +1360,11 @@ export function App() {
                   pull={inspected}
                   analysis={analyses[inspected.id]}
                   error={failures[inspected.id]}
+                  playerId={focusedPlayer}
+                  xivanalysis={xivanalysis ?? undefined}
+                  xivanalysisLoading={xivanalysisLoading}
+                  xivanalysisError={xivanalysisError || undefined}
+                  onSelectPlayer={setFocusedPlayer}
                 />
               )
             )}

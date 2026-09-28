@@ -2,6 +2,17 @@ import type { PullAnalysis } from '../shared/types'
 import { FflogsClient, FflogsError } from './fflogs/client'
 import { analyzePull, normalizeReport } from './fflogs/normalize'
 import type { RawReport } from './fflogs/schema'
+import {
+  buildXivanalysisCompatInput,
+  XIVA_V2_ADAPTER_VERSION,
+  type XivanalysisCompatInput,
+} from './xivanalysis/v2-adapter'
+import {
+  IsolatedXivanalysisRunner,
+  XIVA_ENGINE_REVISION,
+  type XivanalysisEngineResult,
+  type XivanalysisEngineRunner,
+} from './xivanalysis/runner'
 
 class Cache<T> {
   private entries = new Map<string, { value: T; expires: number }>()
@@ -24,7 +35,12 @@ class Cache<T> {
 export class ReportService {
   private reports = new Cache<RawReport>(10)
   private analyses = new Cache<PullAnalysis>(300)
-  constructor(public client: FflogsClient) {}
+  private xivanalysisInputs = new Cache<XivanalysisCompatInput>(50)
+  private xivanalysisResults = new Cache<XivanalysisEngineResult>(300)
+  constructor(
+    public client: FflogsClient,
+    private xivanalysisRunner: XivanalysisEngineRunner = new IsolatedXivanalysisRunner(),
+  ) {}
 
   async report(code: string, refresh = false, signal?: AbortSignal) {
     let raw = refresh ? undefined : this.reports.get(code)
@@ -54,6 +70,44 @@ export class ReportService {
       : []
     const result = analyzePull(raw, pull, [...deathEvents, ...damageTakenEvents, ...lbEvents], dpsMetrics)
     this.analyses.set(key, result)
+    return result
+  }
+
+  async xivanalysisInput(code: string, id: number, refresh = false, signal?: AbortSignal) {
+    const { raw, report } = await this.report(code, false, signal)
+    const pull = report.pulls.find((candidate) => candidate.id === id)
+    if (!pull) throw new FflogsError('Selected encounter was not found in this report.', 404)
+    const key = `${code}:${id}:${pull.endTime}:${raw.endTime}:${XIVA_V2_ADAPTER_VERSION}`
+    const cached = refresh ? undefined : this.xivanalysisInputs.get(key)
+    if (cached) return cached
+
+    const events = await this.client.analysisEvents(code, pull, signal)
+    const result = buildXivanalysisCompatInput(raw, pull, events)
+    this.xivanalysisInputs.set(key, result)
+    return result
+  }
+
+  async xivanalysis(code: string, id: number, actorId: number, refresh = false, signal?: AbortSignal) {
+    const input = await this.xivanalysisInput(code, id, refresh, signal)
+    const actor = input.actors.find(
+      (candidate) => candidate.id === String(actorId) && candidate.playerControlled,
+    )
+    if (!actor) throw new FflogsError('Selected player did not participate in this pull.', 404)
+
+    const key = [
+      code,
+      id,
+      actorId,
+      input.adapterVersion,
+      XIVA_ENGINE_REVISION,
+      input.pull.duration,
+      input.events.length,
+    ].join(':')
+    const cached = refresh ? undefined : this.xivanalysisResults.get(key)
+    if (cached) return cached
+
+    const result = await this.xivanalysisRunner.analyze(input, String(actorId), signal)
+    this.xivanalysisResults.set(key, result)
     return result
   }
 }
