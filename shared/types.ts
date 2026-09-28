@@ -59,10 +59,36 @@ export interface LimitBreakUse {
   actorIds: number[]
 }
 
+export type DpsMetricKey = 'dps' | 'rdps' | 'ndps' | 'cdps' | 'adps'
+
+export interface DpsMetrics {
+  dps: number | null
+  rdps: number | null
+  ndps: number | null
+  cdps: number | null
+  /**
+   * FFLogs documents aDPS, but it is not currently exposed by ReportRankingMetricType.
+   * Keep it explicit rather than aliasing another metric.
+   */
+  adps: number | null
+}
+
+export interface PlayerPullPerformance {
+  fightId: number
+  playerId: number
+  durationMs: number
+  metrics: DpsMetrics
+  deaths: number
+  firstDeath: boolean
+  bossRemaining: number | null
+  fightRemaining: number | null
+}
+
 export interface PullAnalysis {
   fightId: number
   deaths: Death[]
   limitBreak: LimitBreakUse[]
+  performance: PlayerPullPerformance[]
   fetchedAt: number
 }
 
@@ -72,6 +98,8 @@ export interface PlayerSummary extends Player {
   firstDeaths: number
   deathFreePulls: number
   deathsPerPull: number
+  averageDps: DpsMetrics
+  bestDps: DpsMetrics
 }
 
 export interface CauseSummary {
@@ -84,6 +112,7 @@ export interface CauseSummary {
 
 export interface AnalysisSummary {
   deaths: Death[]
+  performance: PlayerPullPerformance[]
   players: PlayerSummary[]
   causes: CauseSummary[]
   totalDuration: number

@@ -1,4 +1,14 @@
-import type { Death, LimitBreakUse, Player, Pull, PullAnalysis, Report } from '../../shared/types'
+import type {
+  Death,
+  DpsMetrics,
+  LimitBreakUse,
+  Player,
+  PlayerPullPerformance,
+  Pull,
+  PullAnalysis,
+  Report,
+} from '../../shared/types'
+import { emptyDpsMetrics } from './client'
 import type { RawActor, RawEvent, RawReport } from './schema'
 
 const jobs: Record<string, [string, Player['role']]> = {
@@ -73,8 +83,12 @@ export function normalizeReport(raw: RawReport): Report {
   }
 }
 
-/** Do not infer causality from the last hit alone; require FFLogs attribution or a lethal damage event. */
-export function analyzePull(raw: RawReport, pull: Pull, events: RawEvent[]): PullAnalysis {
+export function analyzePull(
+  raw: RawReport,
+  pull: Pull,
+  events: RawEvent[],
+  metricsByPlayer: ReadonlyMap<number, DpsMetrics> = new Map(),
+): PullAnalysis {
   const abilities = new Map(raw.masterData.abilities.map((a) => [a.gameID, a.name]))
   const actors = new Map(raw.masterData.actors.map((a) => [a.id, a]))
   const name = (id: number | undefined | null) =>
@@ -141,6 +155,22 @@ export function analyzePull(raw: RawReport, pull: Pull, events: RawEvent[]): Pul
   }
   const firstTimestamp = deaths[0]?.timestamp
   for (const death of deaths) death.firstDeath = death.timestamp === firstTimestamp
+
+  const durationMs = Math.max(1, pull.endTime - pull.startTime)
+  const performance: PlayerPullPerformance[] = pull.playerIds.map((playerId) => {
+    const ownDeaths = deaths.filter((death) => death.playerId === playerId)
+    return {
+      fightId: pull.id,
+      playerId,
+      durationMs,
+      metrics: metricsByPlayer.get(playerId) ?? emptyDpsMetrics(),
+      deaths: ownDeaths.length,
+      firstDeath: ownDeaths.some((death) => death.firstDeath),
+      bossRemaining: pull.bossRemaining,
+      fightRemaining: pull.fightRemaining,
+    }
+  })
+
   const limitBreak = new Map<string, LimitBreakUse>()
   for (const event of scoped) {
     if (
@@ -148,8 +178,6 @@ export function analyzePull(raw: RawReport, pull: Pull, events: RawEvent[]): Pul
       !isLimitBreak(actors.get(event.sourceID ?? -1) ?? { id: -1, name: '', type: '' })
     )
       continue
-    // The shared raid action can be represented by two report actors. Preserve both source IDs,
-    // but one ability at one timestamp is a single use. Do not collapse distinct casts over time.
     const key = `${event.timestamp}:${event.abilityGameID ?? 'unknown'}`
     const use = limitBreak.get(key) ?? {
       timestamp: event.timestamp,
@@ -160,5 +188,11 @@ export function analyzePull(raw: RawReport, pull: Pull, events: RawEvent[]): Pul
     if (!use.actorIds.includes(event.sourceID!)) use.actorIds.push(event.sourceID!)
     limitBreak.set(key, use)
   }
-  return { fightId: pull.id, deaths, limitBreak: [...limitBreak.values()], fetchedAt: Date.now() }
+  return {
+    fightId: pull.id,
+    deaths,
+    limitBreak: [...limitBreak.values()],
+    performance,
+    fetchedAt: Date.now(),
+  }
 }

@@ -1,6 +1,37 @@
-import type { AnalysisSummary, CauseSummary, Pull, PullAnalysis, Report } from './types'
+import type {
+  AnalysisSummary,
+  CauseSummary,
+  DpsMetricKey,
+  DpsMetrics,
+  PlayerPullPerformance,
+  Pull,
+  PullAnalysis,
+  Report,
+} from './types'
 
-/** Aggregate only completed analyses for the selected pulls. Never count area-wide actors. */
+const metricKeys: DpsMetricKey[] = ['dps', 'rdps', 'ndps', 'cdps', 'adps']
+
+function aggregateDps(entries: PlayerPullPerformance[], mode: 'average' | 'best'): DpsMetrics {
+  const result = {} as DpsMetrics
+  for (const key of metricKeys) {
+    const measured = entries.flatMap((entry) => {
+      const value = entry.metrics[key]
+      return value == null ? [] : [{ value, durationMs: entry.durationMs }]
+    })
+    if (!measured.length) {
+      result[key] = null
+      continue
+    }
+    if (mode === 'best') {
+      result[key] = Math.max(...measured.map((entry) => entry.value))
+      continue
+    }
+    const observedMs = measured.reduce((sum, entry) => sum + entry.durationMs, 0)
+    result[key] = measured.reduce((sum, entry) => sum + entry.value * entry.durationMs, 0) / observedMs
+  }
+  return result
+}
+
 export function summarize(report: Report, pulls: Pull[], analyses: PullAnalysis[]): AnalysisSummary {
   const selected = new Set(pulls.map((p) => p.id))
   const completed = new Set(analyses.filter((a) => selected.has(a.fightId)).map((a) => a.fightId))
@@ -9,11 +40,13 @@ export function summarize(report: Report, pulls: Pull[], analyses: PullAnalysis[
   const deaths = included
     .flatMap((p) => byId.get(p.id)?.deaths ?? [])
     .sort((a, b) => a.timestamp - b.timestamp)
+  const performance = included.flatMap((p) => byId.get(p.id)?.performance ?? [])
   const players = report.players
     .flatMap((player) => {
       const participated = included.filter((p) => p.playerIds.includes(player.id))
       if (!participated.length) return []
       const own = deaths.filter((d) => d.playerId === player.id)
+      const ownPerformance = performance.filter((entry) => entry.playerId === player.id)
       return [
         {
           ...player,
@@ -22,6 +55,8 @@ export function summarize(report: Report, pulls: Pull[], analyses: PullAnalysis[
           firstDeaths: own.filter((d) => d.firstDeath).length,
           deathFreePulls: participated.length - new Set(own.map((d) => d.fightId)).size,
           deathsPerPull: own.length / participated.length,
+          averageDps: aggregateDps(ownPerformance, 'average'),
+          bestDps: aggregateDps(ownPerformance, 'best'),
         },
       ]
     })
@@ -47,6 +82,7 @@ export function summarize(report: Report, pulls: Pull[], analyses: PullAnalysis[
   }
   return {
     deaths,
+    performance,
     players,
     causes: [...causes.values()]
       .map(({ pulls: causePulls, ...cause }) => ({ ...cause, affectedPulls: causePulls.size }))

@@ -98,9 +98,33 @@ export const demoAnalyses: PullAnalysis[] = pulls.map((pull, index) => {
             ],
     }
   })
+  const durationMs = pull.endTime - pull.startTime
+  const performance = pull.playerIds.map((playerId) => {
+    const player = players.find((candidate) => candidate.id === playerId)!
+    const roleBase = player.role === 'dps' ? 24500 : player.role === 'tank' ? 15500 : 10500
+    const dps = Math.round(roleBase * (0.91 + ((index + playerId) % 7) * 0.025))
+    const ownDeaths = deaths.filter((death) => death.playerId === playerId)
+    return {
+      fightId: pull.id,
+      playerId,
+      durationMs,
+      metrics: {
+        dps,
+        rdps: Math.round(dps * 0.98),
+        ndps: Math.round(dps * 0.96),
+        cdps: Math.round(dps * 1.01),
+        adps: null,
+      },
+      deaths: ownDeaths.length,
+      firstDeath: ownDeaths.some((death) => death.firstDeath),
+      bossRemaining: pull.bossRemaining,
+      fightRemaining: pull.fightRemaining,
+    }
+  })
   return {
     fightId: pull.id,
     deaths,
+    performance,
     fetchedAt: demoReport.endTime,
     limitBreak:
       index === 5 || pull.kill

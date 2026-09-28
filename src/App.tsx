@@ -53,6 +53,9 @@ export function App() {
   const [revision, setRevision] = useState(0)
   const [focusedPull, setFocusedPull] = useState<number | null>(null)
   const [focusedPlayer, setFocusedPlayer] = useState<number | null>(null)
+  const [playerPullSort, setPlayerPullSort] = useState<'boss' | 'dps' | 'fewest-deaths' | 'most-deaths'>(
+    'boss',
+  )
   const [helpOpen, setHelpOpen] = useState(false)
   const loadController = useRef<AbortController | null>(null)
   const analysisController = useRef<AbortController | null>(null)
@@ -148,6 +151,8 @@ export function App() {
   const bestPull = [...pulls]
     .filter((p) => p.fightRemaining != null)
     .sort((a, b) => a.fightRemaining! - b.fightRemaining!)[0]
+  const performanceFor = (fightId: number, playerId: number) =>
+    analyses[fightId]?.performance.find((entry) => entry.playerId === playerId)
 
   function installReport(next: Report, fightId?: number | 'last') {
     analysisController.current?.abort()
@@ -668,6 +673,8 @@ export function App() {
                           <th>Pulls</th>
                           <th>Deaths</th>
                           <th>Deaths / pull</th>
+                          <th>Avg DPS</th>
+                          <th>Best DPS</th>
                           <th>First deaths</th>
                           <th>Death-free pulls</th>
                         </tr>
@@ -688,6 +695,14 @@ export function App() {
                                 <span className={`count-chip ${p.deaths ? 'bad' : 'good'}`}>{p.deaths}</span>
                               </td>
                               <td>{p.deathsPerPull.toFixed(2)}</td>
+                              <td>
+                                {p.averageDps.dps == null
+                                  ? '—'
+                                  : Math.round(p.averageDps.dps).toLocaleString()}
+                              </td>
+                              <td>
+                                {p.bestDps.dps == null ? '—' : Math.round(p.bestDps.dps).toLocaleString()}
+                              </td>
                               <td>{p.firstDeaths}</td>
                               <td>
                                 {p.deathFreePulls} / {p.pulls}
@@ -703,21 +718,65 @@ export function App() {
                   {focusedPlayer != null && (
                     <div className="player-history">
                       <h3>Pull-by-pull history</h3>
-                      {pulls
+                      <select
+                        aria-label="Sort player pulls"
+                        value={playerPullSort}
+                        onChange={(e) => setPlayerPullSort(e.target.value as typeof playerPullSort)}
+                      >
+                        <option value="boss">Best boss HP</option>
+                        <option value="dps">Highest DPS</option>
+                        <option value="fewest-deaths">Fewest deaths</option>
+                        <option value="most-deaths">Most deaths</option>
+                      </select>
+                      {[...pulls]
                         .filter((p) => p.playerIds.includes(focusedPlayer))
-                        .map((p) => (
-                          <button key={p.id} onClick={() => setFocusedPull(p.id)}>
-                            <span>
-                              Pull {p.id} · {p.name}
-                            </span>
-                            <span>
-                              {analyses[p.id]
-                                ? `${analyses[p.id].deaths.filter((d) => d.playerId === focusedPlayer).length} deaths`
-                                : 'Not analyzed'}{' '}
-                              <ChevronRight size={15} />
-                            </span>
-                          </button>
-                        ))}
+                        .sort((a, b) => {
+                          const ap = performanceFor(a.id, focusedPlayer)
+                          const bp = performanceFor(b.id, focusedPlayer)
+                          if (!ap && !bp) return a.id - b.id
+                          if (!ap) return 1
+                          if (!bp) return -1
+                          if (playerPullSort === 'dps')
+                            return (
+                              (bp.metrics.dps ?? -Infinity) - (ap.metrics.dps ?? -Infinity) || a.id - b.id
+                            )
+                          if (playerPullSort === 'fewest-deaths')
+                            return (
+                              ap.deaths - bp.deaths ||
+                              (bp.metrics.dps ?? 0) - (ap.metrics.dps ?? 0) ||
+                              a.id - b.id
+                            )
+                          if (playerPullSort === 'most-deaths')
+                            return (
+                              bp.deaths - ap.deaths ||
+                              (ap.metrics.dps ?? 0) - (bp.metrics.dps ?? 0) ||
+                              a.id - b.id
+                            )
+                          return (
+                            (ap.bossRemaining ?? Number.POSITIVE_INFINITY) -
+                              (bp.bossRemaining ?? Number.POSITIVE_INFINITY) ||
+                            (bp.metrics.dps ?? 0) - (ap.metrics.dps ?? 0) ||
+                            a.id - b.id
+                          )
+                        })
+                        .map((p) => {
+                          const performance = performanceFor(p.id, focusedPlayer)
+                          return (
+                            <button key={p.id} onClick={() => setFocusedPull(p.id)}>
+                              <span>
+                                Pull {p.id} · {p.name}
+                              </span>
+                              <span>
+                                {performance
+                                  ? `${performance.metrics.dps == null ? '—' : Math.round(performance.metrics.dps).toLocaleString()} DPS · ${performance.deaths} ${
+                                      performance.deaths === 1 ? 'death' : 'deaths'
+                                    } · ${percent(performance.bossRemaining)} boss HP`
+                                  : 'Not analyzed'}{' '}
+                                <ChevronRight size={15} />
+                              </span>
+                            </button>
+                          )
+                        })}
                     </div>
                   )}
                 </section>
@@ -841,7 +900,8 @@ export function App() {
                     </table>
                   </div>
                   <div className="card-footer">
-                    Opener, mitigation, DoT uptime, and performance scores are unavailable until xivanalysis
+                    FFLogs DPS, rDPS, nDPS, and cDPS are retained per player and pull. Opener, mitigation, DoT
+                    uptime, mechanics, and composite performance scores remain unavailable until xivanalysis
                     is connected.
                   </div>
                 </section>

@@ -82,6 +82,32 @@ describe('FFLogs client', () => {
     fetcher.mockResolvedValueOnce(token()).mockResolvedValueOnce(data(null))
     await expect(client.report(fixture.code)).rejects.toThrow('Report not found')
   })
+  it('reads FFLogs report ranking DPS metrics by actor id', async () => {
+    const { fetcher, client } = setup()
+    const ranking = (amount: number) => ({
+      data: [
+        {
+          roles: {
+            tanks: { characters: [{ id: 1, amount }] },
+            healers: { characters: [] },
+            dps: { characters: [] },
+          },
+        },
+      ],
+    })
+    fetcher.mockResolvedValueOnce(token()).mockResolvedValueOnce(
+      data({
+        dps: ranking(15000),
+        rdps: ranking(14750),
+        ndps: ranking(14500),
+        cdps: ranking(15200),
+      }),
+    )
+    await expect(client.dpsMetrics(fixture.code, pull)).resolves.toEqual(
+      new Map([[1, { dps: 15000, rdps: 14750, ndps: 14500, cdps: 15200, adps: null }]]),
+    )
+  })
+
   it('follows continuation timestamps exactly, without skipping events at the boundary', async () => {
     const { fetcher, client } = setup()
     fetcher
@@ -126,6 +152,7 @@ describe('report service', () => {
   it('loads only the chosen pull and caches successful analysis', async () => {
     const { client } = setup()
     const reportSpy = vi.spyOn(client, 'report').mockResolvedValue(fixture)
+    const metricSpy = vi.spyOn(client, 'dpsMetrics').mockResolvedValue(new Map())
     const eventSpy = vi
       .spyOn(client, 'events')
       .mockImplementation(async (_code, _pull, type) =>
@@ -137,21 +164,27 @@ describe('report service', () => {
     expect(await service.pull(fixture.code, 1)).toEqual(result)
     expect(reportSpy).toHaveBeenCalledTimes(1)
     expect(eventSpy).toHaveBeenCalledTimes(3)
+    expect(metricSpy).toHaveBeenCalledTimes(1)
     expect(eventSpy.mock.calls.every((c) => c[1].id === 1)).toBe(true)
-    expect(eventSpy.mock.calls[2][3]).toBe('source.id = 10 OR source.id = 11')
+    expect(eventSpy.mock.calls.find((c) => c[2] === 'Casts')?.[3]).toBe('source.id = 10 OR source.id = 11')
   })
   it('does not cache an analysis with failed damage evidence', async () => {
     const { client } = setup()
     vi.spyOn(client, 'report').mockResolvedValue(fixture)
-    const events = vi.spyOn(client, 'events')
-    events
-      .mockResolvedValueOnce([event('death', 80000, { targetID: 1 })])
-      .mockRejectedValueOnce(new Error('download failed'))
+    vi.spyOn(client, 'dpsMetrics').mockResolvedValue(new Map())
+    const events = vi.spyOn(client, 'events').mockImplementation(async (_code, _pull, type) => {
+      if (type === 'Deaths') return [event('death', 80000, { targetID: 1 })]
+      if (type === 'DamageTaken') throw new Error('download failed')
+      return []
+    })
     const service = new ReportService(client)
     await expect(service.pull(fixture.code, 1)).rejects.toThrow('download failed')
     events.mockResolvedValue([])
-    await expect(service.pull(fixture.code, 1)).resolves.toMatchObject({ deaths: [] })
-    expect(events).toHaveBeenCalledTimes(4)
+    await expect(service.pull(fixture.code, 1)).resolves.toMatchObject({
+      deaths: [],
+      performance: expect.any(Array),
+    })
+    expect(events).toHaveBeenCalledTimes(5)
   })
   it('rejects trash segments before requesting any events', async () => {
     const { client } = setup()
