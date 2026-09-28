@@ -79,39 +79,38 @@ export const demoAnalyses: PullAnalysis[] = pulls.map((pull, index) => {
         abilityId == null
           ? []
           : [
-              {
-                timestamp: timestamp - 3300,
-                abilityId: 1,
-                ability: 'Attack',
-                source: pull.name,
-                amount: 24800,
-                overkill: null,
-              },
-              {
-                timestamp: timestamp - 12,
-                abilityId,
-                ability,
-                source: pull.name,
-                amount: 113200,
-                overkill: 21800,
-              },
+              { timestamp: timestamp - 3300, abilityId: 1, ability: 'Attack', source: pull.name, amount: 24800, overkill: null },
+              { timestamp: timestamp - 12, abilityId, ability, source: pull.name, amount: 113200, overkill: 21800 },
             ],
+    }
+  })
+  const durationMs = pull.endTime - pull.startTime
+  const durationSeconds = durationMs / 1000
+  const performance = pull.playerIds.map((playerId) => {
+    const player = players.find((candidate) => candidate.id === playerId)!
+    const roleBase = player.role === 'dps' ? 24500 : player.role === 'tank' ? 15500 : 10500
+    const dps = Math.round(roleBase * (0.91 + ((index + playerId) % 7) * 0.025))
+    const ownDeaths = deaths.filter((death) => death.playerId === playerId)
+    return {
+      fightId: pull.id,
+      playerId,
+      durationMs,
+      damage: Math.round(dps * durationSeconds),
+      dps,
+      deaths: ownDeaths.length,
+      firstDeath: ownDeaths.some((death) => death.firstDeath),
+      bossRemaining: pull.bossRemaining,
+      fightRemaining: pull.fightRemaining,
     }
   })
   return {
     fightId: pull.id,
     deaths,
+    performance,
     fetchedAt: demoReport.endTime,
     limitBreak:
       index === 5 || pull.kill
-        ? [
-            {
-              timestamp: pull.startTime + 220000,
-              abilityId: 900099,
-              ability: index === 5 ? 'Astral Stasis' : 'Final Heaven',
-              actorIds: [index === 5 ? 90 : 91],
-            },
-          ]
+        ? [{ timestamp: pull.startTime + 220000, abilityId: 900099, ability: index === 5 ? 'Astral Stasis' : 'Final Heaven', actorIds: [index === 5 ? 90 : 91] }]
         : [],
   }
 })
