@@ -33,6 +33,12 @@ global.localStorage = {
   setItem: () => {},
   removeItem: () => {},
 }
+
+global.WheelEvent = class WheelEvent {
+  static DOM_DELTA_PIXEL = 0
+  static DOM_DELTA_LINE = 1
+  static DOM_DELTA_PAGE = 2
+}
 const originalLoad = Module._load
 Module._load = function patchedLoad(request, parent, isMain) {
   if (request === '@sentry/browser') {
