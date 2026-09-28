@@ -153,7 +153,7 @@ export interface XivanalysisChecklistRule {
 }
 
 export interface XivanalysisSuggestion {
-  severity: number
+  severity: number | null
   severityName: string
   value: number | null
   kind: string
