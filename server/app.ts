@@ -68,7 +68,12 @@ export function createApp(service: ReportService) {
       return
     }
     if (error instanceof ZodError) {
-      res.status(502).json({ error: 'The request or FFLogs response has an unexpected format.' })
+      const issue = error.issues[0]
+      const path = issue?.path.length ? issue.path.join('.') : 'response'
+      console.warn('[FFLogs] Schema mismatch', { path, message: issue?.message })
+      res.status(502).json({
+        error: `FFLogs response did not match the expected schema at ${path}: ${issue?.message ?? 'invalid value'}`,
+      })
       return
     }
     const message = error instanceof Error ? error.message : ''
