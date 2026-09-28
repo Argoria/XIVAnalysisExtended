@@ -48,7 +48,16 @@ Module._load = function patchedLoad(request, parent, isMain) {
   return originalLoad.call(this, request, parent, isMain)
 }
 
-const assetExtensions = ['.css', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.ico', '.woff', '.woff2']
+require.extensions['.css'] = (mod) => {
+  mod.exports = new Proxy(
+    {},
+    {
+      get: () => '#000',
+    },
+  )
+}
+
+const assetExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.ico', '.woff', '.woff2']
 for (const extension of assetExtensions) {
   require.extensions[extension] = (mod, filename) => {
     mod.exports = filename
