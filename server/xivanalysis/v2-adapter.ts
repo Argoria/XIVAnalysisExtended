@@ -5,6 +5,7 @@ export const XIVA_V2_ADAPTER_VERSION = 'fflogs-v2-legacy-compat/1'
 
 export interface XivanalysisCompatActor {
   id: string
+  gameID: number | null
   name: string
   type: string
   subType: string | null
@@ -23,6 +24,7 @@ export interface XivanalysisCompatInput {
   adapterVersion: string
   reportCode: string
   reportTimestamp: number
+  reportLanguage: string | null
   pull: {
     id: string
     fightId: number
@@ -72,6 +74,7 @@ export function buildXivanalysisCompatInput(
       )
       return {
         id: String(actor.id),
+        gameID: actor.gameID ?? null,
         name: actor.name,
         type: actor.type,
         subType: actor.subType ?? null,
@@ -114,6 +117,7 @@ export function buildXivanalysisCompatInput(
     adapterVersion: XIVA_V2_ADAPTER_VERSION,
     reportCode: raw.code,
     reportTimestamp: raw.startTime,
+    reportLanguage: raw.masterData.lang ?? null,
     pull: {
       id: String(fight.id),
       fightId: fight.id,
