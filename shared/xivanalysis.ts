@@ -38,11 +38,7 @@ export function summarizeXivanalysis(results: XivanalysisPlayerAnalysis[]): Xiva
 
   for (const result of results) {
     const uptime = result.uptime
-    if (
-      uptime.gcdUptimeMs != null &&
-      uptime.effectiveFightMs != null &&
-      uptime.effectiveFightMs > 0
-    ) {
+    if (uptime.gcdUptimeMs != null && uptime.effectiveFightMs != null && uptime.effectiveFightMs > 0) {
       gcdUptimeMs += uptime.gcdUptimeMs
       eligibleGcdMs += uptime.effectiveFightMs
       gcdPullsMeasured++

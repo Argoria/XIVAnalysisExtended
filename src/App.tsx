@@ -220,18 +220,13 @@ export function App() {
       grouped.set(actorId, entries)
     }
     return new Map(
-      report.players.map((player) => [
-        player.id,
-        summarizeXivanalysis(grouped.get(player.id) ?? []),
-      ]),
+      report.players.map((player) => [player.id, summarizeXivanalysis(grouped.get(player.id) ?? [])]),
     )
   }, [deepAnalyses, pulls, report.players])
-  const focusedDeepSummary =
-    focusedPlayer == null ? null : (deepSummaryByPlayer.get(focusedPlayer) ?? null)
+  const focusedDeepSummary = focusedPlayer == null ? null : (deepSummaryByPlayer.get(focusedPlayer) ?? null)
   const focusedParticipatingPulls =
     focusedPlayer == null ? [] : pulls.filter((pull) => pull.playerIds.includes(focusedPlayer))
-  const deepBatchRunning =
-    deepBatchProgress != null && deepBatchProgress.done < deepBatchProgress.total
+  const deepBatchRunning = deepBatchProgress != null && deepBatchProgress.done < deepBatchProgress.total
 
   function installReport(next: Report, fightId?: number | 'last') {
     analysisController.current?.abort()
@@ -336,9 +331,7 @@ export function App() {
     deepBatchController.current = controller
 
     const targets = pulls.filter((pull) => pull.playerIds.includes(focusedPlayer))
-    const pending = targets.filter(
-      (pull) => !deepAnalyses[xivanalysisKey(pull.id, focusedPlayer)],
-    )
+    const pending = targets.filter((pull) => !deepAnalyses[xivanalysisKey(pull.id, focusedPlayer)])
     const alreadyDone = targets.length - pending.length
     setDeepBatchProgress({ done: alreadyDone, total: targets.length })
     setDeepBatchError('')
@@ -351,13 +344,7 @@ export function App() {
         const pull = pending[cursor++]
         const key = xivanalysisKey(pull.id, focusedPlayer!)
         try {
-          const result = await api.xivanalysis(
-            report.code,
-            pull.id,
-            focusedPlayer!,
-            false,
-            controller.signal,
-          )
+          const result = await api.xivanalysis(report.code, pull.id, focusedPlayer!, false, controller.signal)
           if (!controller.signal.aborted) {
             setDeepAnalyses((previous) => ({ ...previous, [key]: result }))
             if (focusedPull === pull.id) setXivanalysis(result)
