@@ -929,21 +929,38 @@ export function App() {
                             </div>
                             <div>
                               <span>GCD delay</span>
-                              <strong>{duration(focusedDeepSummary?.gcdDowntimeMs ?? 0)}</strong>
-                              <small>{focusedDeepSummary?.gcdDowntimeCount ?? 0} issues</small>
+                              <strong>
+                                {focusedDeepSummary?.gcdDowntimeMs == null
+                                  ? '—'
+                                  : duration(focusedDeepSummary.gcdDowntimeMs)}
+                              </strong>
+                              <small>
+                                {focusedDeepSummary?.gcdDowntimeCount == null
+                                  ? 'Not measured'
+                                  : `${focusedDeepSummary.gcdDowntimeCount} issues`}
+                              </small>
                             </div>
                             <div>
                               <span>Checklist rules</span>
                               <strong>
-                                {focusedDeepSummary?.checklistPassed ?? 0} /{' '}
-                                {focusedDeepSummary?.checklistRules ?? 0}
+                                {(focusedDeepSummary?.pullsAnalyzed ?? 0) === 0
+                                  ? '—'
+                                  : `${focusedDeepSummary!.checklistPassed} / ${focusedDeepSummary!.checklistRules}`}
                               </strong>
                               <small>passed / evaluated</small>
                             </div>
                             <div>
                               <span>Major findings</span>
-                              <strong>{focusedDeepSummary?.severeSuggestions ?? 0}</strong>
-                              <small>{focusedDeepSummary?.visibleSuggestions ?? 0} visible suggestions</small>
+                              <strong>
+                                {(focusedDeepSummary?.pullsAnalyzed ?? 0) === 0
+                                  ? '—'
+                                  : focusedDeepSummary!.severeSuggestions}
+                              </strong>
+                              <small>
+                                {(focusedDeepSummary?.pullsAnalyzed ?? 0) === 0
+                                  ? 'Not analyzed'
+                                  : `${focusedDeepSummary!.visibleSuggestions} visible suggestions`}
+                              </small>
                             </div>
                           </div>
                         )}
