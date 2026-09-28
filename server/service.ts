@@ -2,6 +2,11 @@ import type { PullAnalysis } from '../shared/types'
 import { FflogsClient, FflogsError } from './fflogs/client'
 import { analyzePull, normalizeReport } from './fflogs/normalize'
 import type { RawReport } from './fflogs/schema'
+import {
+  buildXivanalysisCompatInput,
+  XIVA_V2_ADAPTER_VERSION,
+  type XivanalysisCompatInput,
+} from './xivanalysis/v2-adapter'
 
 class Cache<T> {
   private entries = new Map<string, { value: T; expires: number }>()
@@ -24,6 +29,7 @@ class Cache<T> {
 export class ReportService {
   private reports = new Cache<RawReport>(10)
   private analyses = new Cache<PullAnalysis>(300)
+  private xivanalysisInputs = new Cache<XivanalysisCompatInput>(50)
   constructor(public client: FflogsClient) {}
 
   async report(code: string, refresh = false, signal?: AbortSignal) {
@@ -54,6 +60,20 @@ export class ReportService {
       : []
     const result = analyzePull(raw, pull, [...deathEvents, ...damageTakenEvents, ...lbEvents], dpsMetrics)
     this.analyses.set(key, result)
+    return result
+  }
+
+  async xivanalysisInput(code: string, id: number, refresh = false, signal?: AbortSignal) {
+    const { raw, report } = await this.report(code, false, signal)
+    const pull = report.pulls.find((candidate) => candidate.id === id)
+    if (!pull) throw new FflogsError('Selected encounter was not found in this report.', 404)
+    const key = `${code}:${id}:${pull.endTime}:${raw.endTime}:${XIVA_V2_ADAPTER_VERSION}`
+    const cached = refresh ? undefined : this.xivanalysisInputs.get(key)
+    if (cached) return cached
+
+    const events = await this.client.analysisEvents(code, pull, signal)
+    const result = buildXivanalysisCompatInput(raw, pull, events)
+    this.xivanalysisInputs.set(key, result)
     return result
   }
 }
