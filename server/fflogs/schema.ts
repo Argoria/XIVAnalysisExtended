@@ -46,7 +46,11 @@ export const reportSchema = z.object({
   startTime: z.number(),
   endTime: z.number(),
   fights: z.array(fightSchema),
-  masterData: z.object({ actors: z.array(actorSchema), abilities: z.array(abilitySchema) }),
+  masterData: z.object({
+    lang: z.string().nullable().optional(),
+    actors: z.array(actorSchema),
+    abilities: z.array(abilitySchema),
+  }),
 })
 export const eventSchema = z
   .object({
