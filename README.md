@@ -40,24 +40,32 @@ npm start           # Serves the built UI and API at http://127.0.0.1:3001
 
 Deaths during wipe cleanup are included. The final hit and the first death are observations, **not causal blame or proof a death was avoidable**. A recent nonlethal hit is never silently promoted into a killing blow. Missing data stays unknown; a failed or unfinished event fetch never becomes a zero-death pull.
 
-## xivanalysis and scoring status
+## xivanalysis integration status
 
-The upstream repository is added as the pinned Git submodule `vendor/xivanalysis`. Initialize it after cloning:
+The upstream repository is pinned as the Git submodule `vendor/xivanalysis`. Deep analysis runs in an isolated Node process so xivanalysis' React 16/Babel dependency tree stays separate from this application's React 19 runtime.
+
+Initialize the runner dependencies once after cloning or updating the submodule:
 
 ```powershell
-git submodule update --init --recursive
+npm run analysis:setup
 ```
 
-The submodule is **not yet an executing analysis engine** in this app. Its current implementation is a React 16/Webpack application with a legacy FFLogs v1 adapter, browser dependencies, module-specific result state, and React output. Opener checks, DoT uptime, mitigation opportunities, boss-specific recommendations, and composite performance scores are deliberately shown as **not analyzed** in the MVP. DPS metrics remain FFLogs-provided facts and are not treated as xivanalysis execution scores.
+For a selected player × pull, the server now fetches the complete FFLogs v2 event stream, converts it through the versioned compatibility adapter, and executes upstream xivanalysis `adaptEvents` and `Parser`. The structured result currently exposes GCD uptime, GCD lost-time windows, weaving and interrupted-cast delay, checklist rule percentages, module errors, and suggestion severity/value data. The UI loads this path lazily when a specific player/pull is inspected.
 
-See [the product and integration design](docs/design.md) for the implementation path, metric contract, scoring constraints, and acceptance criteria. No upstream dependencies or code are copied into the production bundle. The original MIT license remains in the submodule.
+The application does **not** scrape xivanalysis' rendered React output. Opener correctness, DoT-specific uptime, mitigation opportunities, and boss-mechanic findings still need explicit module-specific extractors because upstream does not expose one uniform numeric contract for those concepts. Composite performance scoring remains intentionally absent until those metrics have support/coverage semantics.
+
+The heavyweight runner smoke test is manual-only in GitHub Actions (`xivanalysis runner smoke`) so ordinary application commits do not reinstall xivanalysis' dependency tree. Locally, `npm run analysis:smoke` exercises the isolated runner after `npm run analysis:setup`.
+
+See [the product and integration design](docs/design.md) for the adapter contract, scoring constraints, and parity requirements. Upstream source remains unmodified in the pinned submodule and retains its MIT license.
 
 ## Layout
 
 | Directory             | Purpose                                                                          |
 | --------------------- | -------------------------------------------------------------------------------- |
 | `server/fflogs/`      | OAuth/GraphQL transport, runtime schemas, actor normalization and death evidence |
-| `server/service.ts`   | Pull orchestration and bounded caches                                            |
+| `server/service.ts`   | FFLogs pull orchestration plus bounded FFLogs/xivanalysis caches                 |
+| `server/xivanalysis/` | FFLogs-v2 compatibility adapter and isolated-engine process bridge               |
+| `analysis-runner/`     | Headless launcher around the pinned upstream xivanalysis parser                  |
 | `shared/`             | Browser/server data contracts, input parsing, aggregation, synthetic demo        |
 | `src/`                | React interface                                                                  |
 | `tests/`              | Independent edge cases and mocked API/service tests                              |
