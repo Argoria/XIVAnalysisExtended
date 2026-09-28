@@ -29,7 +29,7 @@ process.env.NODE_PATH = [path.join(XIVA, 'src'), path.join(XIVA, 'node_modules')
 Module._initPaths()
 
 global.localStorage = {
-  getItem: () => 'DEV',
+  getItem: () => null,
   setItem: () => {},
   removeItem: () => {},
 }
