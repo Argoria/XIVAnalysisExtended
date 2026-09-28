@@ -13,13 +13,7 @@ export const api = {
   report: (code: string, signal?: AbortSignal) => get<Report>(`/api/reports/${code}?refresh=1`, signal),
   pull: (code: string, id: number, refresh: boolean, signal?: AbortSignal) =>
     get<PullAnalysis>(`/api/reports/${code}/pulls/${id}${refresh ? '?refresh=1' : ''}`, signal),
-  xivanalysis: (
-    code: string,
-    pullId: number,
-    actorId: number,
-    refresh = false,
-    signal?: AbortSignal,
-  ) =>
+  xivanalysis: (code: string, pullId: number, actorId: number, refresh = false, signal?: AbortSignal) =>
     get<XivanalysisPlayerAnalysis>(
       `/api/reports/${code}/pulls/${pullId}/players/${actorId}/xivanalysis${refresh ? '?refresh=1' : ''}`,
       signal,

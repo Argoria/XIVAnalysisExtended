@@ -120,7 +120,6 @@ export interface AnalysisSummary {
   kills: number
 }
 
-
 export interface XivanalysisUptimeMetrics {
   fightDurationMs: number
   unavailableMs: number | null

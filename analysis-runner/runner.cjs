@@ -387,23 +387,18 @@ function extractUptime(parser) {
   const weaving = issueSummary(parser.container.weaving)
   const interrupts = issueSummary(parser.container.interrupts)
   const unavailableMs =
-    downtime && typeof downtime.getDowntime === 'function'
-      ? finiteNumber(downtime.getDowntime())
-      : null
+    downtime && typeof downtime.getDowntime === 'function' ? finiteNumber(downtime.getDowntime()) : null
   const gcdCount = finiteNumber(abc?.gcdsCounted)
   const hasGcdData = gcdCount != null && gcdCount > 0
   const gcdUptimeMs = hasGcdData ? finiteNumber(abc?.gcdUptime) : null
   const gcdUptimePercent =
-    hasGcdData && typeof abc?.getUptimePercent === 'function'
-      ? finiteNumber(abc.getUptimePercent())
-      : null
+    hasGcdData && typeof abc?.getUptimePercent === 'function' ? finiteNumber(abc.getUptimePercent()) : null
   const gcdDowntime = issueSummary(abc)
 
   return {
     fightDurationMs: parser.pull.duration,
     unavailableMs,
-    effectiveFightMs:
-      unavailableMs == null ? null : Math.max(0, parser.pull.duration - unavailableMs),
+    effectiveFightMs: unavailableMs == null ? null : Math.max(0, parser.pull.duration - unavailableMs),
     gcdUptimeMs,
     gcdUptimePercent,
     gcdCount,

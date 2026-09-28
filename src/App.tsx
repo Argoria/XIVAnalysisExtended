@@ -797,10 +797,7 @@ export function App() {
                         .map((p) => {
                           const performance = performanceFor(p.id, focusedPlayer)
                           return (
-                            <button
-                              key={p.id}
-                              onClick={() => setFocusedPull(p.id)}
-                            >
+                            <button key={p.id} onClick={() => setFocusedPull(p.id)}>
                               <span>
                                 Pull {p.id} · {p.name}
                               </span>

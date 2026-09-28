@@ -24,7 +24,10 @@ const metricPercent = (value: number | null) => (value == null ? '—' : `${valu
 const readableLabel = (value: string | null, fallback: string) => {
   if (!value) return fallback
   return value
-    .replace(/^(core|gnb|ast|sch|whm|sge|pld|war|drk|mnk|drg|nin|sam|rpr|vpr|brd|mch|dnc|blm|smn|rdm|pct|blu)[.]/, '')
+    .replace(
+      /^(core|gnb|ast|sch|whm|sge|pld|war|drk|mnk|drg|nin|sam|rpr|vpr|brd|mch|dnc|blm|smn|rdm|pct|blu)[.]/,
+      '',
+    )
     .replace(/[._-]+/g, ' ')
     .replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
@@ -61,9 +64,7 @@ export function PullDetail({
       <div className="eyebrow">PULL REVIEW</div>
       <h2>
         Pull {pull.id}{' '}
-        <span className={`pill ${pull.kill ? 'success' : 'neutral'}`}>
-          {pull.kill ? 'Clear' : 'Wipe'}
-        </span>
+        <span className={`pill ${pull.kill ? 'success' : 'neutral'}`}>{pull.kill ? 'Clear' : 'Wipe'}</span>
       </h2>
       <p className="detail-subtitle">
         {pull.name} · {duration(pull.endTime - pull.startTime)} · {percent(pull.fightRemaining)} fight
@@ -126,8 +127,8 @@ export function PullDetail({
           {!player ? (
             <>
               <p className="muted small">
-                Choose a participating player to run the pinned xivanalysis engine for this pull. Deep analysis
-                is loaded on demand rather than for every player automatically.
+                Choose a participating player to run the pinned xivanalysis engine for this pull. Deep
+                analysis is loaded on demand rather than for every player automatically.
               </p>
               <div className="xiva-player-grid">
                 {report.players
@@ -195,12 +196,16 @@ function XivanalysisDetail({ analysis }: { analysis: XivanalysisPlayerAnalysis }
         <div>
           <span>GCD delay</span>
           <strong>{delay(uptime.gcdDowntimeMs)}</strong>
-          <small>{uptime.gcdDowntimeCount == null ? 'Unavailable' : `${uptime.gcdDowntimeCount} issues`}</small>
+          <small>
+            {uptime.gcdDowntimeCount == null ? 'Unavailable' : `${uptime.gcdDowntimeCount} issues`}
+          </small>
         </div>
         <div>
           <span>Weaving delay</span>
           <strong>{delay(uptime.weavingDelayMs)}</strong>
-          <small>{uptime.weavingIssueCount == null ? 'Unavailable' : `${uptime.weavingIssueCount} issues`}</small>
+          <small>
+            {uptime.weavingIssueCount == null ? 'Unavailable' : `${uptime.weavingIssueCount} issues`}
+          </small>
         </div>
         <div>
           <span>Interrupted casts</span>
@@ -382,9 +387,7 @@ export function Coverage() {
           DoT-specific uptime, and boss-mechanic extractors will be mapped from the relevant upstream modules
           instead of inferred from rendered JSX.
         </p>
-        <p>
-          Unsupported, incomplete, and not-applicable metrics remain distinct from a measured zero.
-        </p>
+        <p>Unsupported, incomplete, and not-applicable metrics remain distinct from a measured zero.</p>
       </div>
       <div className="coverage-block">
         <h3>
