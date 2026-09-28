@@ -1,5 +1,6 @@
 import type {
   Death,
+  DpsMetrics,
   LimitBreakUse,
   Player,
   PlayerPullPerformance,
@@ -7,6 +8,7 @@ import type {
   PullAnalysis,
   Report,
 } from '../../shared/types'
+import { emptyDpsMetrics } from './client'
 import type { RawActor, RawEvent, RawReport } from './schema'
 
 const jobs: Record<string, [string, Player['role']]> = {
@@ -81,8 +83,12 @@ export function normalizeReport(raw: RawReport): Report {
   }
 }
 
-/** Do not infer causality from the last hit alone; require FFLogs attribution or a lethal damage event. */
-export function analyzePull(raw: RawReport, pull: Pull, events: RawEvent[]): PullAnalysis {
+export function analyzePull(
+  raw: RawReport,
+  pull: Pull,
+  events: RawEvent[],
+  metricsByPlayer: ReadonlyMap<number, DpsMetrics> = new Map(),
+): PullAnalysis {
   const abilities = new Map(raw.masterData.abilities.map((a) => [a.gameID, a.name]))
   const actors = new Map(raw.masterData.actors.map((a) => [a.id, a]))
   const name = (id: number | undefined | null) =>
@@ -150,31 +156,14 @@ export function analyzePull(raw: RawReport, pull: Pull, events: RawEvent[]): Pul
   const firstTimestamp = deaths[0]?.timestamp
   for (const death of deaths) death.firstDeath = death.timestamp === firstTimestamp
 
-  const participantIds = new Set(pull.playerIds)
-  const friendlyOwner = (actorId: number | null | undefined) => {
-    if (actorId == null) return null
-    if (participantIds.has(actorId)) return actorId
-    const owner = actors.get(actorId)?.petOwner
-    return owner != null && participantIds.has(owner) ? owner : null
-  }
-  const damageByPlayer = new Map(pull.playerIds.map((id) => [id, 0]))
-  for (const event of scoped) {
-    if (event.type !== 'damage' || event.sourceID == null || (event.amount ?? 0) <= 0) continue
-    const owner = friendlyOwner(event.sourceID)
-    if (owner == null) continue
-    if (friendlyOwner(event.targetID) != null) continue
-    damageByPlayer.set(owner, (damageByPlayer.get(owner) ?? 0) + (event.amount ?? 0))
-  }
   const durationMs = Math.max(1, pull.endTime - pull.startTime)
   const performance: PlayerPullPerformance[] = pull.playerIds.map((playerId) => {
     const ownDeaths = deaths.filter((death) => death.playerId === playerId)
-    const damage = damageByPlayer.get(playerId) ?? 0
     return {
       fightId: pull.id,
       playerId,
       durationMs,
-      damage,
-      dps: damage / (durationMs / 1000),
+      metrics: metricsByPlayer.get(playerId) ?? emptyDpsMetrics(),
       deaths: ownDeaths.length,
       firstDeath: ownDeaths.some((death) => death.firstDeath),
       bossRemaining: pull.bossRemaining,

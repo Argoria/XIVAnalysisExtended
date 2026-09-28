@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { eventPageSchema, reportSchema, type RawEvent, type RawReport } from './schema'
-import type { Pull } from '../../shared/types'
+import type { DpsMetricKey, DpsMetrics, Pull } from '../../shared/types'
 
 const TOKEN_URL = 'https://www.fflogs.com/oauth/token'
 const API_URL = 'https://www.fflogs.com/api/v2/client'
@@ -29,6 +29,42 @@ export const EVENTS_QUERY = `query Events($code: String!, $fightIDs: [Int]!, $st
     }
   } }
 }`
+export const DPS_METRICS_QUERY = `query PullDps($code: String!, $fightIDs: [Int]!) {
+  reportData { report(code: $code) {
+    dps: rankings(fightIDs: $fightIDs, playerMetric: dps)
+    rdps: rankings(fightIDs: $fightIDs, playerMetric: rdps)
+    ndps: rankings(fightIDs: $fightIDs, playerMetric: ndps)
+    cdps: rankings(fightIDs: $fightIDs, playerMetric: cdps)
+  } }
+}`
+
+const directDpsMetricKeys = ['dps', 'rdps', 'ndps', 'cdps'] as const
+const rankingCharacterSchema = z.object({ id: z.number().int(), amount: z.number() }).passthrough()
+const rankingPayloadSchema = z
+  .object({
+    data: z.array(
+      z
+        .object({
+          roles: z.record(
+            z
+              .object({
+                characters: z.array(rankingCharacterSchema),
+              })
+              .passthrough(),
+          ),
+        })
+        .passthrough(),
+    ),
+  })
+  .passthrough()
+
+export const emptyDpsMetrics = (): DpsMetrics => ({
+  dps: null,
+  rdps: null,
+  ndps: null,
+  cdps: null,
+  adps: null,
+})
 
 export class FflogsClient {
   private token?: { value: string; expiresAt: number }
@@ -94,7 +130,6 @@ export class FflogsClient {
       if (signal?.aborted) throw error
       const cause = error instanceof Error ? error.cause : undefined
       const code = cause && typeof cause === 'object' && 'code' in cause ? String(cause.code) : 'unknown'
-      // Log only a transport code: never request headers, credentials, tokens or response bodies.
       console.warn(`[FFLogs] Transport failure: ${code}`)
       const timedOut = error instanceof Error && /TimeoutError|AbortError/.test(error.name)
       throw new FflogsError(
@@ -150,7 +185,6 @@ export class FflogsClient {
             'This report is not accessible with client credentials. Use a public report.',
             403,
           )
-        // Even partial GraphQL results are rejected; otherwise missing events look like clean pulls.
         throw new FflogsError(`FFLogs query failed: ${messages.slice(0, 400)}`)
       }
       if (!body.data) throw new FflogsError('FFLogs returned no report data.')
@@ -167,10 +201,51 @@ export class FflogsClient {
     return envelope.reportData.report
   }
 
+  async dpsMetrics(
+    code: string,
+    pull: Pull,
+    signal?: AbortSignal,
+  ): Promise<Map<number, DpsMetrics>> {
+    const data = await this.query(DPS_METRICS_QUERY, { code, fightIDs: [pull.id] }, signal)
+    const envelope = z
+      .object({
+        reportData: z.object({
+          report: z
+            .object({
+              dps: z.unknown(),
+              rdps: z.unknown(),
+              ndps: z.unknown(),
+              cdps: z.unknown(),
+            })
+            .nullable(),
+        }),
+      })
+      .parse(data)
+    if (!envelope.reportData.report)
+      throw new FflogsError('Report became unavailable while loading DPS metrics.', 404)
+
+    const byPlayer = new Map<number, DpsMetrics>()
+    for (const key of directDpsMetricKeys) {
+      const payload = envelope.reportData.report[key]
+      if (payload == null) continue
+      const ranking = rankingPayloadSchema.parse(payload)
+      for (const fight of ranking.data) {
+        for (const role of Object.values(fight.roles)) {
+          for (const character of role.characters) {
+            const metrics = byPlayer.get(character.id) ?? emptyDpsMetrics()
+            metrics[key satisfies Exclude<DpsMetricKey, 'adps'>] = character.amount
+            byPlayer.set(character.id, metrics)
+          }
+        }
+      }
+    }
+    return byPlayer
+  }
+
   async events(
     code: string,
     pull: Pull,
-    dataType: 'Deaths' | 'DamageTaken' | 'DamageDone' | 'Casts',
+    dataType: 'Deaths' | 'DamageTaken' | 'Casts',
     filter?: string,
     signal?: AbortSignal,
   ): Promise<RawEvent[]> {
@@ -194,7 +269,6 @@ export class FflogsClient {
       if (next == null) return events
       if (next <= start || next > pull.endTime || !batch.data.length)
         throw new FflogsError('FFLogs returned inconsistent event pagination. No partial analysis was saved.')
-      // FFLogs owns the continuation boundary. Adding 1 here would skip events sharing the timestamp.
       start = next
     }
     throw new FflogsError('This pull exceeded the event page limit. No partial analysis was saved.')

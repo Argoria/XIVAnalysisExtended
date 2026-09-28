@@ -1,4 +1,40 @@
-import type { AnalysisSummary, CauseSummary, Pull, PullAnalysis, Report } from './types'
+import type {
+  AnalysisSummary,
+  CauseSummary,
+  DpsMetricKey,
+  DpsMetrics,
+  PlayerPullPerformance,
+  Pull,
+  PullAnalysis,
+  Report,
+} from './types'
+
+const metricKeys: DpsMetricKey[] = ['dps', 'rdps', 'ndps', 'cdps', 'adps']
+
+function aggregateDps(
+  entries: PlayerPullPerformance[],
+  mode: 'average' | 'best',
+): DpsMetrics {
+  const result = {} as DpsMetrics
+  for (const key of metricKeys) {
+    const measured = entries.flatMap((entry) => {
+      const value = entry.metrics[key]
+      return value == null ? [] : [{ value, durationMs: entry.durationMs }]
+    })
+    if (!measured.length) {
+      result[key] = null
+      continue
+    }
+    if (mode === 'best') {
+      result[key] = Math.max(...measured.map((entry) => entry.value))
+      continue
+    }
+    const observedMs = measured.reduce((sum, entry) => sum + entry.durationMs, 0)
+    result[key] =
+      measured.reduce((sum, entry) => sum + entry.value * entry.durationMs, 0) / observedMs
+  }
+  return result
+}
 
 export function summarize(report: Report, pulls: Pull[], analyses: PullAnalysis[]): AnalysisSummary {
   const selected = new Set(pulls.map((p) => p.id))
@@ -15,8 +51,6 @@ export function summarize(report: Report, pulls: Pull[], analyses: PullAnalysis[
       if (!participated.length) return []
       const own = deaths.filter((d) => d.playerId === player.id)
       const ownPerformance = performance.filter((entry) => entry.playerId === player.id)
-      const totalDamage = ownPerformance.reduce((sum, entry) => sum + entry.damage, 0)
-      const observedMs = ownPerformance.reduce((sum, entry) => sum + entry.durationMs, 0)
       return [
         {
           ...player,
@@ -25,9 +59,8 @@ export function summarize(report: Report, pulls: Pull[], analyses: PullAnalysis[
           firstDeaths: own.filter((d) => d.firstDeath).length,
           deathFreePulls: participated.length - new Set(own.map((d) => d.fightId)).size,
           deathsPerPull: own.length / participated.length,
-          totalDamage,
-          averageDps: observedMs ? totalDamage / (observedMs / 1000) : 0,
-          bestDps: ownPerformance.reduce((best, entry) => Math.max(best, entry.dps), 0),
+          averageDps: aggregateDps(ownPerformance, 'average'),
+          bestDps: aggregateDps(ownPerformance, 'best'),
         },
       ]
     })
@@ -35,7 +68,6 @@ export function summarize(report: Report, pulls: Pull[], analyses: PullAnalysis[
       (a, b) =>
         b.deathsPerPull - a.deathsPerPull || b.firstDeaths - a.firstDeaths || a.name.localeCompare(b.name),
     )
-
   const causes = new Map<string, CauseSummary & { pulls: Set<number> }>()
   for (const death of deaths) {
     const key = death.abilityId == null ? 'unknown' : String(death.abilityId)

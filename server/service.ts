@@ -44,20 +44,15 @@ export class ReportService {
     if (cached) return cached
 
     const lbFilter = report.limitBreakActorIds.map((actorId) => `source.id = ${actorId}`).join(' OR ')
-    const [deathEvents, damageDoneEvents, lbEvents] = await Promise.all([
+    const [deathEvents, dpsMetrics, lbEvents] = await Promise.all([
       this.client.events(code, pull, 'Deaths', undefined, signal),
-      this.client.events(code, pull, 'DamageDone', undefined, signal),
+      this.client.dpsMetrics(code, pull, signal),
       lbFilter ? this.client.events(code, pull, 'Casts', lbFilter, signal) : Promise.resolve([]),
     ])
     const damageTakenEvents = deathEvents.length
       ? await this.client.events(code, pull, 'DamageTaken', undefined, signal)
       : []
-    const result = analyzePull(raw, pull, [
-      ...deathEvents,
-      ...damageTakenEvents,
-      ...damageDoneEvents,
-      ...lbEvents,
-    ])
+    const result = analyzePull(raw, pull, [...deathEvents, ...damageTakenEvents, ...lbEvents], dpsMetrics)
     this.analyses.set(key, result)
     return result
   }
