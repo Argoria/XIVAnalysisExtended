@@ -264,11 +264,7 @@ export class FflogsClient {
     return byPlayer
   }
 
-  async analysisEvents(
-    code: string,
-    pull: Pull,
-    signal?: AbortSignal,
-  ): Promise<RawAnalysisEvent[]> {
+  async analysisEvents(code: string, pull: Pull, signal?: AbortSignal): Promise<RawAnalysisEvent[]> {
     const events: RawAnalysisEvent[] = []
     let start = pull.startTime
     for (let page = 0; page < 100; page++) {
@@ -297,7 +293,9 @@ export class FflogsClient {
         )
       start = next
     }
-    throw new FflogsError('This pull exceeded the xivanalysis event page limit. No partial analysis was saved.')
+    throw new FflogsError(
+      'This pull exceeded the xivanalysis event page limit. No partial analysis was saved.',
+    )
   }
 
   async events(

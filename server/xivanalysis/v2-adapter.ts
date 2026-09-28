@@ -51,16 +51,8 @@ export function buildXivanalysisCompatInput(
   if (!fight) throw new Error(`Fight ${pull.id} is missing from the FFLogs report metadata.`)
 
   const friendlyPlayerIds = new Set(fight.friendlyPlayers ?? [])
-  const friendlyIds = new Set([
-    ...friendlyPlayerIds,
-    ...ids(fight.friendlyNPCs),
-    ...ids(fight.friendlyPets),
-  ])
-  const enemyIds = new Set([
-    ...(fight.enemyPlayers ?? []),
-    ...ids(fight.enemyNPCs),
-    ...ids(fight.enemyPets),
-  ])
+  const friendlyIds = new Set([...friendlyPlayerIds, ...ids(fight.friendlyNPCs), ...ids(fight.friendlyPets)])
+  const enemyIds = new Set([...(fight.enemyPlayers ?? []), ...ids(fight.enemyNPCs), ...ids(fight.enemyPets)])
   const participantIds = new Set([...friendlyIds, ...enemyIds])
   const instanceCounts = new Map<number, number>()
   for (const actor of [
