@@ -1,0 +1,30 @@
+name: Format player aggregation once
+
+on:
+  push:
+    branches:
+      - feature/xivanalysis-v2-adapter
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/xivanalysis-v2-adapter
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx prettier --write shared/xivanalysis.ts src/App.tsx
+      - run: |
+          git rm .github/workflows/format-player-aggregation-once.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add shared/xivanalysis.ts src/App.tsx
+          git commit -m "Format player deep-analysis aggregation"
+          git push origin HEAD:feature/xivanalysis-v2-adapter
