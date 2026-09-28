@@ -22,6 +22,7 @@ import {
   X,
 } from 'lucide-react'
 import { summarize } from '../shared/analysis'
+import { summarizeXivanalysis } from '../shared/xivanalysis'
 import { demoAnalyses, demoReport } from '../shared/demo'
 import { parseReportInput } from '../shared/report-input'
 import type { Pull, PullAnalysis, Report, XivanalysisPlayerAnalysis } from '../shared/types'
@@ -36,6 +37,7 @@ const views: { id: View; label: string; icon: typeof Activity }[] = [
   { id: 'matrix', label: 'Player × pull', icon: Layers3 },
 ]
 const encounterKey = (pull: Pull) => `${pull.encounterID}:${pull.difficulty ?? 'unknown'}`
+const xivanalysisKey = (pullId: number, playerId: number) => `${pullId}:${playerId}`
 
 export function App() {
   const [report, setReport] = useState<Report>(demoReport)
@@ -53,16 +55,20 @@ export function App() {
   const [revision, setRevision] = useState(0)
   const [focusedPull, setFocusedPull] = useState<number | null>(null)
   const [focusedPlayer, setFocusedPlayer] = useState<number | null>(null)
-  const [playerPullSort, setPlayerPullSort] = useState<'boss' | 'dps' | 'fewest-deaths' | 'most-deaths'>(
-    'boss',
-  )
+  const [playerPullSort, setPlayerPullSort] = useState<
+    'boss' | 'dps' | 'uptime' | 'fewest-deaths' | 'most-deaths'
+  >('boss')
   const [helpOpen, setHelpOpen] = useState(false)
   const [xivanalysis, setXivanalysis] = useState<XivanalysisPlayerAnalysis | null>(null)
   const [xivanalysisError, setXivanalysisError] = useState('')
   const [xivanalysisLoading, setXivanalysisLoading] = useState(false)
+  const [deepAnalyses, setDeepAnalyses] = useState<Record<string, XivanalysisPlayerAnalysis>>({})
+  const [deepBatchProgress, setDeepBatchProgress] = useState<{ done: number; total: number } | null>(null)
+  const [deepBatchError, setDeepBatchError] = useState('')
   const loadController = useRef<AbortController | null>(null)
   const analysisController = useRef<AbortController | null>(null)
   const xivanalysisController = useRef<AbortController | null>(null)
+  const deepBatchController = useRef<AbortController | null>(null)
   const detailRef = useRef<HTMLElement>(null)
   useEffect(() => {
     api
@@ -115,13 +121,23 @@ export function App() {
     const pull = report.pulls.find((candidate) => candidate.id === focusedPull)
     if (!pull?.playerIds.includes(focusedPlayer)) return
 
+    const key = xivanalysisKey(focusedPull, focusedPlayer)
+    const cached = deepAnalyses[key]
+    if (cached) {
+      setXivanalysis(cached)
+      return
+    }
+
     const controller = new AbortController()
     xivanalysisController.current = controller
     setXivanalysisLoading(true)
     api
       .xivanalysis(report.code, focusedPull, focusedPlayer, false, controller.signal)
       .then((result) => {
-        if (!controller.signal.aborted) setXivanalysis(result)
+        if (!controller.signal.aborted) {
+          setXivanalysis(result)
+          setDeepAnalyses((previous) => ({ ...previous, [key]: result }))
+        }
       })
       .catch((error) => {
         if (!controller.signal.aborted)
@@ -131,7 +147,7 @@ export function App() {
         if (!controller.signal.aborted) setXivanalysisLoading(false)
       })
     return () => controller.abort()
-  }, [report, focusedPull, focusedPlayer])
+  }, [report, focusedPull, focusedPlayer, deepAnalyses])
 
   useEffect(() => {
     if (focusedPull != null || helpOpen) {
