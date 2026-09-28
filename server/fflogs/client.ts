@@ -18,7 +18,7 @@ export const REPORT_QUERY = `query Report($code: String!) {
   reportData { report(code: $code) {
     code title startTime endTime
     fights { id encounterID name difficulty startTime endTime kill bossPercentage fightPercentage friendlyPlayers }
-    masterData { actors { id name type subType } abilities { gameID name } }
+    masterData { actors { id name type subType petOwner } abilities { gameID name } }
   } }
 }`
 export const EVENTS_QUERY = `query Events($code: String!, $fightIDs: [Int]!, $start: Float!, $end: Float!, $dataType: EventDataType!, $filter: String) {
@@ -170,7 +170,7 @@ export class FflogsClient {
   async events(
     code: string,
     pull: Pull,
-    dataType: 'Deaths' | 'DamageTaken' | 'Casts',
+    dataType: 'Deaths' | 'DamageTaken' | 'DamageDone' | 'Casts',
     filter?: string,
     signal?: AbortSignal,
   ): Promise<RawEvent[]> {
