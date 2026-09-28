@@ -218,6 +218,47 @@ describe('report service', () => {
     })
     expect(events).toHaveBeenCalledTimes(5)
   })
+  it('loads and caches complete xivanalysis adapter input only after a successful event fetch', async () => {
+    const { client } = setup()
+    vi.spyOn(client, 'report').mockResolvedValue(fixture)
+    const analysisEvents = vi.spyOn(client, 'analysisEvents').mockResolvedValue([
+      {
+        timestamp: 80000,
+        type: 'cast',
+        fight: 1,
+        sourceID: 1,
+        targetID: 20,
+        ability: { guid: 101, name: 'Attack' },
+      },
+    ])
+    const service = new ReportService(client)
+
+    const first = await service.xivanalysisInput(fixture.code, 1)
+    const second = await service.xivanalysisInput(fixture.code, 1)
+
+    expect(second).toEqual(first)
+    expect(first.events).toHaveLength(1)
+    expect(first.adapterVersion).toMatch(/^fflogs-v2-legacy-compat\//)
+    expect(analysisEvents).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not cache failed xivanalysis event downloads', async () => {
+    const { client } = setup()
+    vi.spyOn(client, 'report').mockResolvedValue(fixture)
+    const analysisEvents = vi
+      .spyOn(client, 'analysisEvents')
+      .mockRejectedValueOnce(new Error('full stream failed'))
+      .mockResolvedValueOnce([])
+    const service = new ReportService(client)
+
+    await expect(service.xivanalysisInput(fixture.code, 1)).rejects.toThrow('full stream failed')
+    await expect(service.xivanalysisInput(fixture.code, 1)).resolves.toMatchObject({
+      reportCode: fixture.code,
+      events: [],
+    })
+    expect(analysisEvents).toHaveBeenCalledTimes(2)
+  })
+
   it('rejects trash segments before requesting any events', async () => {
     const { client } = setup()
     vi.spyOn(client, 'report').mockResolvedValue(fixture)
