@@ -1,4 +1,4 @@
-import type { PullAnalysis, Report } from '../shared/types'
+import type { PullAnalysis, Report, XivanalysisPlayerAnalysis } from '../shared/types'
 
 async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(path, { signal })
@@ -13,4 +13,15 @@ export const api = {
   report: (code: string, signal?: AbortSignal) => get<Report>(`/api/reports/${code}?refresh=1`, signal),
   pull: (code: string, id: number, refresh: boolean, signal?: AbortSignal) =>
     get<PullAnalysis>(`/api/reports/${code}/pulls/${id}${refresh ? '?refresh=1' : ''}`, signal),
+  xivanalysis: (
+    code: string,
+    pullId: number,
+    actorId: number,
+    refresh = false,
+    signal?: AbortSignal,
+  ) =>
+    get<XivanalysisPlayerAnalysis>(
+      `/api/reports/${code}/pulls/${pullId}/players/${actorId}/xivanalysis${refresh ? '?refresh=1' : ''}`,
+      signal,
+    ),
 }
