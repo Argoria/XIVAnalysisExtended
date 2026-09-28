@@ -13,7 +13,7 @@ export const fixture: RawReport = {
       { id: 4, name: 'Unrelated player', type: 'Player', subType: 'Warrior' },
       { id: 10, name: 'Limit Break', type: 'Player', subType: 'LimitBreak' },
       { id: 11, name: 'Limit Break', type: 'NPC', subType: null },
-      { id: 12, name: 'Fairy', type: 'Pet', subType: null },
+      { id: 12, name: 'Fairy', type: 'Pet', subType: null, petOwner: 1 },
       { id: 20, name: 'Boss', type: 'NPC', subType: 'Boss' },
     ],
     abilities: [
