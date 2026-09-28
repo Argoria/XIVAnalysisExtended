@@ -387,7 +387,20 @@ async function analyse(input, actorId) {
   if (actorMeta) meta = meta.merge(actorMeta)
 
   const parser = new Parser({ meta, report, pull, actor })
-  await parser.configure()
+  try {
+    await parser.configure()
+  } catch (error) {
+    const constructors = await meta.getModules()
+    const tincture = constructors.find((ctor) => ctor.handle === 'tincture')
+    const dependencyHandles = tincture?.dependencies?.map(
+      (dependency) => `${dependency.prop}:${dependency.handle}`,
+    )
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(
+      `${message} [tincture dependencies: ${JSON.stringify(dependencyHandles ?? [])}]`,
+      { cause: error },
+    )
+  }
   parser.parseEvents({ events: adaptedEvents })
 
   const moduleErrors = Object.fromEntries(
