@@ -98,7 +98,9 @@ export class IsolatedXivanalysisRunner implements XivanalysisEngineRunner {
         stdout += chunk
         if (stdout.length > 2_000_000) {
           child.kill('SIGTERM')
-          finish(() => reject(new XivanalysisRunnerError('xivanalysis runner returned too much output.', 502)))
+          finish(() =>
+            reject(new XivanalysisRunnerError('xivanalysis runner returned too much output.', 502)),
+          )
         }
       })
       child.stderr.on('data', (chunk: string) => {
@@ -118,7 +120,9 @@ export class IsolatedXivanalysisRunner implements XivanalysisEngineRunner {
           finish(() =>
             reject(
               new XivanalysisRunnerError(
-                detail ? `xivanalysis runner failed: ${detail}` : `xivanalysis runner exited with code ${code}.`,
+                detail
+                  ? `xivanalysis runner failed: ${detail}`
+                  : `xivanalysis runner exited with code ${code}.`,
                 502,
               ),
             ),
@@ -129,9 +133,7 @@ export class IsolatedXivanalysisRunner implements XivanalysisEngineRunner {
           const parsed = JSON.parse(stdout) as XivanalysisEngineResult
           finish(() => resolveResult(parsed))
         } catch {
-          finish(() =>
-            reject(new XivanalysisRunnerError('xivanalysis runner returned invalid JSON.', 502)),
-          )
+          finish(() => reject(new XivanalysisRunnerError('xivanalysis runner returned invalid JSON.', 502)))
         }
       })
 

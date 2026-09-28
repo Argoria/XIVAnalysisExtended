@@ -7,8 +7,7 @@ const Module = require('node:module')
 
 const ROOT = path.resolve(__dirname, '..')
 const XIVA = path.join(ROOT, 'vendor', 'xivanalysis')
-const ENGINE_REVISION =
-  process.env.XIVA_ENGINE_REVISION || 'f532855e635bdfb4211cec8128d582dadfdc6a75'
+const ENGINE_REVISION = process.env.XIVA_ENGINE_REVISION || 'f532855e635bdfb4211cec8128d582dadfdc6a75'
 
 function fail(message, details) {
   process.stderr.write(JSON.stringify({ error: message, details: details || null }) + '\n')
@@ -68,14 +67,9 @@ require(path.join(XIVA, 'node_modules', '@babel', 'register'))({
 const { GameEdition } = require(path.join(XIVA, 'src', 'data', 'EDITIONS.ts'))
 const { getEncounterKey } = require(path.join(XIVA, 'src', 'data', 'ENCOUNTERS.ts'))
 const { Team } = require(path.join(XIVA, 'src', 'report.ts'))
-const { adaptEvents } = require(path.join(
-  XIVA,
-  'src',
-  'reportSources',
-  'legacyFflogs',
-  'eventAdapter',
-  'adapter.ts',
-))
+const { adaptEvents } = require(
+  path.join(XIVA, 'src', 'reportSources', 'legacyFflogs', 'eventAdapter', 'adapter.ts'),
+)
 const { AVAILABLE_MODULES } = require(path.join(XIVA, 'src', 'parser', 'AVAILABLE_MODULES.ts'))
 const { Parser } = require(path.join(XIVA, 'src', 'parser', 'core', 'Parser.tsx'))
 
@@ -230,12 +224,7 @@ async function analyse(input, actorId) {
   const actor = pull.actors.find((candidate) => candidate.id === actorId && candidate.playerControlled)
   if (!actor) throw new Error(`Player actor ${actorId} is not available in pull ${pull.id}.`)
 
-  const adaptedEvents = adaptEvents(
-    report,
-    pull,
-    input.events,
-    input.pull.firstEventTimestamp,
-  )
+  const adaptedEvents = adaptEvents(report, pull, input.events, input.pull.firstEventTimestamp)
 
   let meta = AVAILABLE_MODULES.CORE
   if (pull.encounter.key && AVAILABLE_MODULES.BOSSES[pull.encounter.key]) {

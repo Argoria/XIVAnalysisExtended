@@ -87,13 +87,7 @@ export class ReportService {
     return result
   }
 
-  async xivanalysis(
-    code: string,
-    id: number,
-    actorId: number,
-    refresh = false,
-    signal?: AbortSignal,
-  ) {
+  async xivanalysis(code: string, id: number, actorId: number, refresh = false, signal?: AbortSignal) {
     const input = await this.xivanalysisInput(code, id, refresh, signal)
     const actor = input.actors.find(
       (candidate) => candidate.id === String(actorId) && candidate.playerControlled,
