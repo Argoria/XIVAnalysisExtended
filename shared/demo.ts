@@ -99,7 +99,6 @@ export const demoAnalyses: PullAnalysis[] = pulls.map((pull, index) => {
     }
   })
   const durationMs = pull.endTime - pull.startTime
-  const durationSeconds = durationMs / 1000
   const performance = pull.playerIds.map((playerId) => {
     const player = players.find((candidate) => candidate.id === playerId)!
     const roleBase = player.role === 'dps' ? 24500 : player.role === 'tank' ? 15500 : 10500
@@ -109,8 +108,13 @@ export const demoAnalyses: PullAnalysis[] = pulls.map((pull, index) => {
       fightId: pull.id,
       playerId,
       durationMs,
-      damage: Math.round(dps * durationSeconds),
-      dps,
+      metrics: {
+        dps,
+        rdps: Math.round(dps * 0.98),
+        ndps: Math.round(dps * 0.96),
+        cdps: Math.round(dps * 1.01),
+        adps: null,
+      },
       deaths: ownDeaths.length,
       firstDeath: ownDeaths.some((death) => death.firstDeath),
       bossRemaining: pull.bossRemaining,

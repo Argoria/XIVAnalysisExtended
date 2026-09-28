@@ -5,7 +5,6 @@ export const actorSchema = z.object({
   name: z.string(),
   type: z.string(),
   subType: z.string().nullable().optional(),
-  petOwner: z.number().int().nullable().optional(),
 })
 export const abilitySchema = z.object({ gameID: z.number(), name: z.string() })
 export const fightSchema = z.object({
