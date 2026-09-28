@@ -1,0 +1,4 @@
+[submodule "vendor/xivanalysis"]
+	path = vendor/xivanalysis
+	url = https://github.com/xivanalysis/xivanalysis.git
+	branch = dawntrail
