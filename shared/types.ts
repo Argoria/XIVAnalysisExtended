@@ -59,10 +59,28 @@ export interface LimitBreakUse {
   actorIds: number[]
 }
 
+/**
+ * FFLogs-only performance facts for one participating player in one pull.
+ * DPS is raw outgoing damage divided by full pull duration. It is intentionally
+ * not presented as FFLogs rDPS/aDPS/nDPS or as an xivanalysis execution score.
+ */
+export interface PlayerPullPerformance {
+  fightId: number
+  playerId: number
+  durationMs: number
+  damage: number
+  dps: number
+  deaths: number
+  firstDeath: boolean
+  bossRemaining: number | null
+  fightRemaining: number | null
+}
+
 export interface PullAnalysis {
   fightId: number
   deaths: Death[]
   limitBreak: LimitBreakUse[]
+  performance: PlayerPullPerformance[]
   fetchedAt: number
 }
 
@@ -72,6 +90,9 @@ export interface PlayerSummary extends Player {
   firstDeaths: number
   deathFreePulls: number
   deathsPerPull: number
+  totalDamage: number
+  averageDps: number
+  bestDps: number
 }
 
 export interface CauseSummary {
@@ -84,6 +105,7 @@ export interface CauseSummary {
 
 export interface AnalysisSummary {
   deaths: Death[]
+  performance: PlayerPullPerformance[]
   players: PlayerSummary[]
   causes: CauseSummary[]
   totalDuration: number
