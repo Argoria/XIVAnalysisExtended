@@ -23,6 +23,12 @@ if (!fs.existsSync(path.join(XIVA, 'node_modules', '@babel', 'register'))) {
 
 process.env.NODE_ENV = 'production'
 process.chdir(XIVA)
+
+if (!Object.hasOwn(Symbol, 'metadata')) {
+  Object.defineProperty(Symbol, 'metadata', {
+    value: Symbol.for('Symbol.metadata'),
+  })
+}
 process.env.NODE_PATH = [path.join(XIVA, 'src'), path.join(XIVA, 'node_modules'), process.env.NODE_PATH]
   .filter(Boolean)
   .join(path.delimiter)
