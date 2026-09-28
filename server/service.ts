@@ -3,13 +3,9 @@ import { FflogsClient, FflogsError } from './fflogs/client'
 import { analyzePull, normalizeReport } from './fflogs/normalize'
 import type { RawReport } from './fflogs/schema'
 
-/** Small process-local caches; nothing persists report contents or tokens to disk. */
 class Cache<T> {
   private entries = new Map<string, { value: T; expires: number }>()
-  constructor(
-    private capacity: number,
-    private ttl = 60000,
-  ) {}
+  constructor(private capacity: number, private ttl = 60000) {}
   get(key: string) {
     const entry = this.entries.get(key)
     if (entry && entry.expires > Date.now()) return entry.value
@@ -43,13 +39,22 @@ export class ReportService {
     const key = `${code}:${id}:${pull.endTime}:${raw.endTime}`
     const cached = refresh ? undefined : this.analyses.get(key)
     if (cached) return cached
-    const deathEvents = await this.client.events(code, pull, 'Deaths', undefined, signal)
-    const damageEvents = deathEvents.length
+
+    const lbFilter = report.limitBreakActorIds.map((actorId) => `source.id = ${actorId}`).join(' OR ')
+    const [deathEvents, damageDoneEvents, lbEvents] = await Promise.all([
+      this.client.events(code, pull, 'Deaths', undefined, signal),
+      this.client.events(code, pull, 'DamageDone', undefined, signal),
+      lbFilter ? this.client.events(code, pull, 'Casts', lbFilter, signal) : Promise.resolve([]),
+    ])
+    const damageTakenEvents = deathEvents.length
       ? await this.client.events(code, pull, 'DamageTaken', undefined, signal)
       : []
-    const lbFilter = report.limitBreakActorIds.map((actorId) => `source.id = ${actorId}`).join(' OR ')
-    const lbEvents = lbFilter ? await this.client.events(code, pull, 'Casts', lbFilter, signal) : []
-    const result = analyzePull(raw, pull, [...deathEvents, ...damageEvents, ...lbEvents])
+    const result = analyzePull(raw, pull, [
+      ...deathEvents,
+      ...damageTakenEvents,
+      ...damageDoneEvents,
+      ...lbEvents,
+    ])
     this.analyses.set(key, result)
     return result
   }
