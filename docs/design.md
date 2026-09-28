@@ -23,11 +23,12 @@ The metadata schema records both `bossPercentage` and `fightPercentage`. Multi-p
 1. Parse a report code from a constrained FFLogs URL; do not fetch arbitrary user-provided hosts.
 2. Authenticate server-side using the client-credentials grant. Reuse the token until expiry, and renew once on HTTP 401.
 3. Fetch fights, actor master data, and ability master data. Exclude non-boss and zero-duration segments.
-4. For each selected pull, fetch all friendly death pages. When deaths exist, fetch damage-taken pages for evidence. Fetch casts filtered to the report's Limit Break actor IDs.
+4. For each selected pull, fetch all friendly death pages and `DamageDone`. When deaths exist, fetch damage-taken pages for evidence. Fetch casts filtered to the report's Limit Break actor IDs. Roll pet damage into the participating owner using report actor `petOwner` metadata.
 5. Follow `nextPageTimestamp` exactly, with a monotonic-cursor check and a page limit. Reject partial GraphQL errors and incomplete event pages.
 6. Filter events by the selected pull window, optional event fight ID, and participating player IDs. Deduplicate death events by pull + player + timestamp. Preserve deaths after resurrection.
 7. Prefer `killingAbilityGameID`. Otherwise accept an incoming hit within one second with positive overkill or positive damage and zero recorded target HP. Other cases are unknown. The UI distinguishes these evidence sources.
-8. Cache only successful complete analysis in a bounded process-local cache. UI concurrency is two pulls; selection changes abort obsolete downloads. The UI explicitly labels incomplete aggregate coverage.
+8. Compute raw player damage and pull-duration DPS from the complete `DamageDone` stream. Keep this metric distinct from FFLogs rDPS/aDPS/nDPS and from future xivanalysis execution scoring.
+9. Cache only successful complete analysis in a bounded process-local cache. UI concurrency is two pulls; selection changes abort obsolete downloads. The UI explicitly labels incomplete aggregate coverage.
 
 First deaths include ties at the exact timestamp. They are not labeled wipe causes. Wipe cleanup, intentional deaths, wall deaths, game-specific fake deaths, and lethal events without damage need stronger context for deeper diagnosis. Those distinctions must use verified boss rules or explicit user annotations; avoid introducing arbitrary “last N seconds of pull” blame filters.
 
