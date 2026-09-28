@@ -854,7 +854,7 @@ export function App() {
                                   : `${deepSummaryByPlayer.get(p.id)!.gcdUptimePercent!.toFixed(1)}%`}
                               </td>
                               <td>
-                                {deepSummaryByPlayer.get(p.id)?.pullsAnalyzed ?? 0} / {p.pulls}
+                                {deepSummaryByPlayer.get(p.id)?.playerPullsAnalyzed ?? 0} / {p.pulls}
                               </td>
                               <td>{p.firstDeaths}</td>
                               <td>
@@ -881,7 +881,7 @@ export function App() {
                             disabled={
                               isDemo ||
                               deepBatchRunning ||
-                              (focusedDeepSummary?.pullsAnalyzed ?? 0) >= focusedParticipatingPulls.length
+                              (focusedDeepSummary?.playerPullsAnalyzed ?? 0) >= focusedParticipatingPulls.length
                             }
                             onClick={() => void analyzeFocusedPlayerPulls()}
                           >
@@ -890,7 +890,7 @@ export function App() {
                                 <LoaderCircle size={14} className="spin" />
                                 {deepBatchProgress?.done ?? 0}/{deepBatchProgress?.total ?? 0}
                               </>
-                            ) : (focusedDeepSummary?.pullsAnalyzed ?? 0) >=
+                            ) : (focusedDeepSummary?.playerPullsAnalyzed ?? 0) >=
                               focusedParticipatingPulls.length ? (
                               'Deep analysis complete'
                             ) : (
@@ -910,7 +910,7 @@ export function App() {
                                   : `${focusedDeepSummary.gcdUptimePercent.toFixed(1)}%`}
                               </strong>
                               <small>
-                                {focusedDeepSummary?.gcdPullsMeasured ?? 0} measured /{' '}
+                                {focusedDeepSummary?.gcdPlayerPullsMeasured ?? 0} measured /{' '}
                                 {focusedParticipatingPulls.length} selected pulls
                               </small>
                             </div>
@@ -930,7 +930,7 @@ export function App() {
                             <div>
                               <span>Checklist rules</span>
                               <strong>
-                                {(focusedDeepSummary?.pullsAnalyzed ?? 0) === 0
+                                {(focusedDeepSummary?.playerPullsAnalyzed ?? 0) === 0
                                   ? '—'
                                   : `${focusedDeepSummary!.checklistPassed} / ${focusedDeepSummary!.checklistRules}`}
                               </strong>
@@ -939,12 +939,12 @@ export function App() {
                             <div>
                               <span>Major findings</span>
                               <strong>
-                                {(focusedDeepSummary?.pullsAnalyzed ?? 0) === 0
+                                {(focusedDeepSummary?.playerPullsAnalyzed ?? 0) === 0
                                   ? '—'
                                   : focusedDeepSummary!.severeSuggestions}
                               </strong>
                               <small>
-                                {(focusedDeepSummary?.pullsAnalyzed ?? 0) === 0
+                                {(focusedDeepSummary?.playerPullsAnalyzed ?? 0) === 0
                                   ? 'Not analyzed'
                                   : `${focusedDeepSummary!.visibleSuggestions} visible suggestions`}
                               </small>
