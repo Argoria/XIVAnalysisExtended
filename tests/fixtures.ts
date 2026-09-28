@@ -6,6 +6,7 @@ export const fixture: RawReport = {
   startTime: 1700000000000,
   endTime: 1700000500000,
   masterData: {
+    lang: 'en',
     actors: [
       { id: 1, gameID: 1001, name: 'Tank', type: 'Player', subType: 'Gunbreaker' },
       { id: 2, gameID: 1002, name: 'Healer', type: 'Player', subType: 'Astrologian' },
