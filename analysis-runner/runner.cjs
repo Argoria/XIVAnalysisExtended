@@ -118,10 +118,10 @@ require(resolveFromVendor('@babel/register'))({
     ],
   ],
   overrides: [
-    { test: /\\.jsx?$/, plugins: getPlugins() },
-    { test: /\\.ts$/, plugins: getPlugins({ isTypescript: true }) },
-    { test: /\\.tsx$/, plugins: getPlugins({ isTypescript: true, isTSX: true }) },
-  ],
+    { test: /[.]jsx?$/, plugins: getPlugins() },
+    { test: /[.]ts$/, plugins: getPlugins({ isTypescript: true }) },
+    { test: /[.]tsx$/, plugins: getPlugins({ isTypescript: true, isTSX: true }) },
+  ]
 })
 
 const { GameEdition } = require(path.join(XIVA, 'src', 'data', 'EDITIONS.ts'))
