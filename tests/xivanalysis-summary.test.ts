@@ -88,4 +88,19 @@ describe('xivanalysis aggregation', () => {
     expect(summary.gcdPullsMeasured).toBe(0)
     expect(summary.pullsAnalyzed).toBe(1)
   })
+  it('preserves unavailable delay metrics instead of turning them into zero', () => {
+    const missing = result(1, null, null, [])
+    missing.uptime.gcdDowntimeMs = null
+    missing.uptime.gcdDowntimeCount = null
+    missing.uptime.weavingDelayMs = null
+    missing.uptime.weavingIssueCount = null
+    missing.uptime.interruptedCastDelayMs = null
+    missing.uptime.interruptedCastCount = null
+
+    const summary = summarizeXivanalysis([missing])
+    expect(summary.gcdDowntimeMs).toBeNull()
+    expect(summary.gcdDowntimeCount).toBeNull()
+    expect(summary.weavingDelayMs).toBeNull()
+    expect(summary.interruptedCastDelayMs).toBeNull()
+  })
 })
