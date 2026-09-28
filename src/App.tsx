@@ -673,8 +673,8 @@ export function App() {
                           <th>Pulls</th>
                           <th>Deaths</th>
                           <th>Deaths / pull</th>
-                          <th>Avg raw DPS</th>
-                          <th>Best raw DPS</th>
+                          <th>Avg DPS</th>
+                          <th>Best DPS</th>
                           <th>First deaths</th>
                           <th>Death-free pulls</th>
                         </tr>
@@ -695,8 +695,8 @@ export function App() {
                                 <span className={`count-chip ${p.deaths ? 'bad' : 'good'}`}>{p.deaths}</span>
                               </td>
                               <td>{p.deathsPerPull.toFixed(2)}</td>
-                              <td>{Math.round(p.averageDps).toLocaleString()}</td>
-                              <td>{Math.round(p.bestDps).toLocaleString()}</td>
+                              <td>{p.averageDps.dps == null ? '—' : Math.round(p.averageDps.dps).toLocaleString()}</td>
+                              <td>{p.bestDps.dps == null ? '—' : Math.round(p.bestDps.dps).toLocaleString()}</td>
                               <td>{p.firstDeaths}</td>
                               <td>
                                 {p.deathFreePulls} / {p.pulls}
@@ -718,7 +718,7 @@ export function App() {
                         onChange={(e) => setPlayerPullSort(e.target.value as typeof playerPullSort)}
                       >
                         <option value="boss">Best boss HP</option>
-                        <option value="dps">Highest raw DPS</option>
+                        <option value="dps">Highest DPS</option>
                         <option value="fewest-deaths">Fewest deaths</option>
                         <option value="most-deaths">Most deaths</option>
                       </select>
@@ -730,15 +730,16 @@ export function App() {
                           if (!ap && !bp) return a.id - b.id
                           if (!ap) return 1
                           if (!bp) return -1
-                          if (playerPullSort === 'dps') return bp.dps - ap.dps || a.id - b.id
+                          if (playerPullSort === 'dps')
+                            return (bp.metrics.dps ?? -Infinity) - (ap.metrics.dps ?? -Infinity) || a.id - b.id
                           if (playerPullSort === 'fewest-deaths')
-                            return ap.deaths - bp.deaths || bp.dps - ap.dps || a.id - b.id
+                            return ap.deaths - bp.deaths || (bp.metrics.dps ?? 0) - (ap.metrics.dps ?? 0) || a.id - b.id
                           if (playerPullSort === 'most-deaths')
-                            return bp.deaths - ap.deaths || ap.dps - bp.dps || a.id - b.id
+                            return bp.deaths - ap.deaths || (ap.metrics.dps ?? 0) - (bp.metrics.dps ?? 0) || a.id - b.id
                           return (
                             (ap.bossRemaining ?? Number.POSITIVE_INFINITY) -
                               (bp.bossRemaining ?? Number.POSITIVE_INFINITY) ||
-                            bp.dps - ap.dps ||
+                            (bp.metrics.dps ?? 0) - (ap.metrics.dps ?? 0) ||
                             a.id - b.id
                           )
                         })
@@ -751,7 +752,7 @@ export function App() {
                               </span>
                               <span>
                                 {performance
-                                  ? `${Math.round(performance.dps).toLocaleString()} DPS · ${performance.deaths} ${
+                                  ? `${performance.metrics.dps == null ? '—' : Math.round(performance.metrics.dps).toLocaleString()} DPS · ${performance.deaths} ${
                                       performance.deaths === 1 ? 'death' : 'deaths'
                                     } · ${percent(performance.bossRemaining)} boss HP`
                                   : 'Not analyzed'}{' '}
@@ -883,8 +884,8 @@ export function App() {
                     </table>
                   </div>
                   <div className="card-footer">
-                    Raw pull DPS is available from FFLogs. Opener, mitigation, DoT uptime, mechanics, and
-                    composite performance scores remain unavailable until xivanalysis is connected.
+                    FFLogs DPS, rDPS, nDPS, and cDPS are retained per player and pull. Opener, mitigation, DoT
+                    uptime, mechanics, and composite performance scores remain unavailable until xivanalysis is connected.
                   </div>
                 </section>
               )}
