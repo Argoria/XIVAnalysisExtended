@@ -79,8 +79,22 @@ export const demoAnalyses: PullAnalysis[] = pulls.map((pull, index) => {
         abilityId == null
           ? []
           : [
-              { timestamp: timestamp - 3300, abilityId: 1, ability: 'Attack', source: pull.name, amount: 24800, overkill: null },
-              { timestamp: timestamp - 12, abilityId, ability, source: pull.name, amount: 113200, overkill: 21800 },
+              {
+                timestamp: timestamp - 3300,
+                abilityId: 1,
+                ability: 'Attack',
+                source: pull.name,
+                amount: 24800,
+                overkill: null,
+              },
+              {
+                timestamp: timestamp - 12,
+                abilityId,
+                ability,
+                source: pull.name,
+                amount: 113200,
+                overkill: 21800,
+              },
             ],
     }
   })
@@ -110,7 +124,14 @@ export const demoAnalyses: PullAnalysis[] = pulls.map((pull, index) => {
     fetchedAt: demoReport.endTime,
     limitBreak:
       index === 5 || pull.kill
-        ? [{ timestamp: pull.startTime + 220000, abilityId: 900099, ability: index === 5 ? 'Astral Stasis' : 'Final Heaven', actorIds: [index === 5 ? 90 : 91] }]
+        ? [
+            {
+              timestamp: pull.startTime + 220000,
+              abilityId: 900099,
+              ability: index === 5 ? 'Astral Stasis' : 'Final Heaven',
+              actorIds: [index === 5 ? 90 : 91],
+            },
+          ]
         : [],
   }
 })
