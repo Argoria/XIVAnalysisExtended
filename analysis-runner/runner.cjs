@@ -56,12 +56,66 @@ for (const extension of assetExtensions) {
   }
 }
 
-require(path.join(XIVA, 'node_modules', '@babel', 'register'))({
+const resolveFromVendor = (id) => require.resolve(id, { paths: [XIVA] })
+const presetEnvPackage = require.resolve('@babel/preset-env/package.json', { paths: [XIVA] })
+const resolveFromPresetEnv = (id) =>
+  require.resolve(id, { paths: [path.dirname(presetEnvPackage)] })
+
+const dependencyPlugin = require(path.join(XIVA, 'config', 'babel-plugin-xiva-dependency.js'))
+const typescriptPlugin = require(resolveFromVendor('@babel/plugin-transform-typescript'))
+const decoratorsPlugin = require(resolveFromVendor('@babel/plugin-proposal-decorators'))
+const classPropertiesPlugin = require(resolveFromPresetEnv('@babel/plugin-transform-class-properties'))
+const macrosPlugin = require(resolveFromVendor('babel-plugin-macros'))
+const lodashPlugin = require(resolveFromVendor('babel-plugin-lodash'))
+const transformRuntimePlugin = require(resolveFromVendor('@babel/plugin-transform-runtime'))
+
+const getPlugins = ({ isTypescript = false, isTSX = false } = {}) =>
+  [
+    dependencyPlugin,
+    isTypescript && [typescriptPlugin, { isTSX, allowDeclareFields: true }],
+    [decoratorsPlugin, { version: '2023-11' }],
+    classPropertiesPlugin,
+    macrosPlugin,
+    lodashPlugin,
+    [
+      transformRuntimePlugin,
+      {
+        corejs: { version: 3 },
+        useESModules: true,
+        version: '^7.12.5',
+      },
+    ],
+  ].filter(Boolean)
+
+require(resolveFromVendor('@babel/register'))({
   extensions: ['.js', '.jsx', '.ts', '.tsx'],
   cwd: XIVA,
   root: XIVA,
-  configFile: path.join(XIVA, 'babel.config.js'),
+  babelrc: false,
+  configFile: false,
   cache: false,
+  presets: [
+    [
+      require(resolveFromVendor('@babel/preset-env')),
+      {
+        bugfixes: true,
+        targets: { node: true },
+        include: ['proposal-class-static-block'],
+      },
+    ],
+    [
+      require(resolveFromVendor('@babel/preset-react')),
+      {
+        development: false,
+        runtime: 'automatic',
+      },
+    ],
+  ],
+  overrides: [
+    { test: /\\.jsx?$/, plugins: getPlugins() },
+    { test: /\\.ts$/, plugins: getPlugins({ isTypescript: true }) },
+    { test: /\\.tsx$/, plugins: getPlugins({ isTypescript: true, isTSX: true }) },
+  ],
 })
 
 const { GameEdition } = require(path.join(XIVA, 'src', 'data', 'EDITIONS.ts'))
