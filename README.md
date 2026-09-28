@@ -65,7 +65,7 @@ See [the product and integration design](docs/design.md) for the adapter contrac
 | `server/fflogs/`      | OAuth/GraphQL transport, runtime schemas, actor normalization and death evidence |
 | `server/service.ts`   | FFLogs pull orchestration plus bounded FFLogs/xivanalysis caches                 |
 | `server/xivanalysis/` | FFLogs-v2 compatibility adapter and isolated-engine process bridge               |
-| `analysis-runner/`     | Headless launcher around the pinned upstream xivanalysis parser                  |
+| `analysis-runner/`    | Headless launcher around the pinned upstream xivanalysis parser                  |
 | `shared/`             | Browser/server data contracts, input parsing, aggregation, synthetic demo        |
 | `src/`                | React interface                                                                  |
 | `tests/`              | Independent edge cases and mocked API/service tests                              |
