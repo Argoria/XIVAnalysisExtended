@@ -34,6 +34,7 @@ export const REPORT_QUERY = `query Report($code: String!) {
       gameZone { id name }
     }
     masterData {
+      lang
       actors { id gameID name type subType petOwner }
       abilities { gameID name type icon }
     }
