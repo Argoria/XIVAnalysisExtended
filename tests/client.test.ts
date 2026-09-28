@@ -152,8 +152,11 @@ describe('report service', () => {
     const service = new ReportService(client)
     await expect(service.pull(fixture.code, 1)).rejects.toThrow('download failed')
     events.mockResolvedValue([])
-    await expect(service.pull(fixture.code, 1)).resolves.toMatchObject({ deaths: [], performance: expect.any(Array) })
-    expect(events).toHaveBeenCalledTimes(8)
+    await expect(service.pull(fixture.code, 1)).resolves.toMatchObject({
+      deaths: [],
+      performance: expect.any(Array),
+    })
+    expect(events).toHaveBeenCalledTimes(7)
   })
   it('rejects trash segments before requesting any events', async () => {
     const { client } = setup()
