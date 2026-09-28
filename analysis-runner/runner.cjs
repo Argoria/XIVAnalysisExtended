@@ -338,14 +338,16 @@ function describeNode(node) {
   }
   if (typeof node !== 'object') return null
 
-  if (typeof node.id === 'string') return node.id
   const props = node.props
-  if (!props || typeof props !== 'object') return null
-  if (typeof props.id === 'string') return props.id
-  if (typeof props.action === 'string') return `action:${props.action}`
-  if (typeof props.status === 'string') return `status:${props.status}`
-  if (typeof props.item === 'string') return `item:${props.item}`
-  return describeNode(props.children)
+  if (props && typeof props === 'object') {
+    const children = describeNode(props.children)
+    if (children) return children
+    if (typeof props.action === 'string') return `action:${props.action}`
+    if (typeof props.status === 'string') return `status:${props.status}`
+    if (typeof props.item === 'string') return `item:${props.item}`
+    if (typeof props.id === 'string') return props.id
+  }
+  return typeof node.id === 'string' ? node.id : null
 }
 
 function issueSummary(module) {
