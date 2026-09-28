@@ -224,6 +224,8 @@ export function App() {
     focusedPlayer == null ? null : (deepSummaryByPlayer.get(focusedPlayer) ?? null)
   const focusedParticipatingPulls =
     focusedPlayer == null ? [] : pulls.filter((pull) => pull.playerIds.includes(focusedPlayer))
+  const deepBatchRunning =
+    deepBatchProgress != null && deepBatchProgress.done < deepBatchProgress.total
 
   function installReport(next: Report, fightId?: number | 'last') {
     analysisController.current?.abort()
@@ -823,6 +825,8 @@ export function App() {
                           <th>Deaths / pull</th>
                           <th>Avg DPS</th>
                           <th>Best DPS</th>
+                          <th>GCD uptime</th>
+                          <th>Deep pulls</th>
                           <th>First deaths</th>
                           <th>Death-free pulls</th>
                         </tr>
@@ -851,6 +855,14 @@ export function App() {
                               <td>
                                 {p.bestDps.dps == null ? '—' : Math.round(p.bestDps.dps).toLocaleString()}
                               </td>
+                              <td>
+                                {deepSummaryByPlayer.get(p.id)?.gcdUptimePercent == null
+                                  ? '—'
+                                  : `${deepSummaryByPlayer.get(p.id)!.gcdUptimePercent!.toFixed(1)}%`}
+                              </td>
+                              <td>
+                                {deepSummaryByPlayer.get(p.id)?.pullsAnalyzed ?? 0} / {p.pulls}
+                              </td>
                               <td>{p.firstDeaths}</td>
                               <td>
                                 {p.deathFreePulls} / {p.pulls}
@@ -865,17 +877,90 @@ export function App() {
                   </div>
                   {focusedPlayer != null && (
                     <div className="player-history">
-                      <h3>Pull-by-pull history</h3>
-                      <select
-                        aria-label="Sort player pulls"
-                        value={playerPullSort}
-                        onChange={(e) => setPlayerPullSort(e.target.value as typeof playerPullSort)}
-                      >
-                        <option value="boss">Best boss HP</option>
-                        <option value="dps">Highest DPS</option>
-                        <option value="fewest-deaths">Fewest deaths</option>
-                        <option value="most-deaths">Most deaths</option>
-                      </select>
+                      <div className="deep-rollup">
+                        <div className="deep-rollup-heading">
+                          <div>
+                            <span className="eyebrow">XIVANALYSIS COVERAGE</span>
+                            <h3>Execution across selected pulls</h3>
+                          </div>
+                          <button
+                            className="button"
+                            disabled={
+                              isDemo ||
+                              deepBatchRunning ||
+                              (focusedDeepSummary?.pullsAnalyzed ?? 0) >= focusedParticipatingPulls.length
+                            }
+                            onClick={() => void analyzeFocusedPlayerPulls()}
+                          >
+                            {deepBatchRunning ? (
+                              <>
+                                <LoaderCircle size={14} className="spin" />
+                                {deepBatchProgress?.done ?? 0}/{deepBatchProgress?.total ?? 0}
+                              </>
+                            ) : (focusedDeepSummary?.pullsAnalyzed ?? 0) >=
+                              focusedParticipatingPulls.length ? (
+                              'Deep analysis complete'
+                            ) : (
+                              'Analyze selected pulls'
+                            )}
+                          </button>
+                        </div>
+                        {isDemo ? (
+                          <p className="muted small">Deep analysis is disabled for synthetic demo data.</p>
+                        ) : (
+                          <div className="deep-rollup-metrics">
+                            <div>
+                              <span>Weighted GCD uptime</span>
+                              <strong>
+                                {focusedDeepSummary?.gcdUptimePercent == null
+                                  ? '—'
+                                  : `${focusedDeepSummary.gcdUptimePercent.toFixed(1)}%`}
+                              </strong>
+                              <small>
+                                {focusedDeepSummary?.gcdPullsMeasured ?? 0} measured /{' '}
+                                {focusedParticipatingPulls.length} selected pulls
+                              </small>
+                            </div>
+                            <div>
+                              <span>GCD delay</span>
+                              <strong>{duration(focusedDeepSummary?.gcdDowntimeMs ?? 0)}</strong>
+                              <small>{focusedDeepSummary?.gcdDowntimeCount ?? 0} issues</small>
+                            </div>
+                            <div>
+                              <span>Checklist rules</span>
+                              <strong>
+                                {focusedDeepSummary?.checklistPassed ?? 0} /{' '}
+                                {focusedDeepSummary?.checklistRules ?? 0}
+                              </strong>
+                              <small>passed / evaluated</small>
+                            </div>
+                            <div>
+                              <span>Major findings</span>
+                              <strong>{focusedDeepSummary?.severeSuggestions ?? 0}</strong>
+                              <small>{focusedDeepSummary?.visibleSuggestions ?? 0} visible suggestions</small>
+                            </div>
+                          </div>
+                        )}
+                        {deepBatchError && (
+                          <div className="notice error deep-rollup-error" role="alert">
+                            {deepBatchError}
+                          </div>
+                        )}
+                      </div>
+                      <div className="player-history-heading">
+                        <h3>Pull-by-pull history</h3>
+                        <select
+                          aria-label="Sort player pulls"
+                          value={playerPullSort}
+                          onChange={(e) => setPlayerPullSort(e.target.value as typeof playerPullSort)}
+                        >
+                          <option value="boss">Best boss HP</option>
+                          <option value="dps">Highest DPS</option>
+                          <option value="uptime">Highest GCD uptime</option>
+                          <option value="fewest-deaths">Fewest deaths</option>
+                          <option value="most-deaths">Most deaths</option>
+                        </select>
+                      </div>
                       {[...pulls]
                         .filter((p) => p.playerIds.includes(focusedPlayer))
                         .sort((a, b) => {
@@ -888,6 +973,16 @@ export function App() {
                             return (
                               (bp.metrics.dps ?? -Infinity) - (ap.metrics.dps ?? -Infinity) || a.id - b.id
                             )
+                          if (playerPullSort === 'uptime') {
+                            const aUptime =
+                              deepAnalyses[xivanalysisKey(a.id, focusedPlayer)]?.uptime.gcdUptimePercent
+                            const bUptime =
+                              deepAnalyses[xivanalysisKey(b.id, focusedPlayer)]?.uptime.gcdUptimePercent
+                            if (aUptime == null && bUptime == null) return a.id - b.id
+                            if (aUptime == null) return 1
+                            if (bUptime == null) return -1
+                            return bUptime - aUptime || a.id - b.id
+                          }
                           if (playerPullSort === 'fewest-deaths')
                             return (
                               ap.deaths - bp.deaths ||
@@ -909,6 +1004,7 @@ export function App() {
                         })
                         .map((p) => {
                           const performance = performanceFor(p.id, focusedPlayer)
+                          const deep = deepAnalyses[xivanalysisKey(p.id, focusedPlayer)]
                           return (
                             <button key={p.id} onClick={() => setFocusedPull(p.id)}>
                               <span>
@@ -916,9 +1012,13 @@ export function App() {
                               </span>
                               <span>
                                 {performance
-                                  ? `${performance.metrics.dps == null ? '—' : Math.round(performance.metrics.dps).toLocaleString()} DPS · ${performance.deaths} ${
-                                      performance.deaths === 1 ? 'death' : 'deaths'
-                                    } · ${percent(performance.bossRemaining)} boss HP`
+                                  ? `${performance.metrics.dps == null ? '—' : Math.round(performance.metrics.dps).toLocaleString()} DPS · ${
+                                      deep?.uptime.gcdUptimePercent == null
+                                        ? 'uptime —'
+                                        : `${deep.uptime.gcdUptimePercent.toFixed(1)}% uptime`
+                                    } · ${performance.deaths} ${performance.deaths === 1 ? 'death' : 'deaths'} · ${percent(
+                                      performance.bossRemaining,
+                                    )} boss HP`
                                   : 'Not analyzed'}{' '}
                                 <ChevronRight size={15} />
                               </span>
