@@ -140,6 +140,82 @@ const { adaptEvents } = require(
 )
 const { AVAILABLE_MODULES } = require(path.join(XIVA, 'src', 'parser', 'AVAILABLE_MODULES.ts'))
 const { Parser } = require(path.join(XIVA, 'src', 'parser', 'core', 'Parser.tsx'))
+const { Meta } = require(path.join(XIVA, 'src', 'parser', 'core', 'Meta.tsx'))
+
+const JOB_MODULE_DIRS = {
+  PALADIN: 'pld',
+  WARRIOR: 'war',
+  DARK_KNIGHT: 'drk',
+  GUNBREAKER: 'gnb',
+  WHITE_MAGE: 'whm',
+  SCHOLAR: 'sch',
+  ASTROLOGIAN: 'ast',
+  SAGE: 'sge',
+  MONK: 'mnk',
+  DRAGOON: 'drg',
+  NINJA: 'nin',
+  SAMURAI: 'sam',
+  REAPER: 'rpr',
+  VIPER: 'vpr',
+  BEASTMASTER: 'bst',
+  BARD: 'brd',
+  MACHINIST: 'mch',
+  DANCER: 'dnc',
+  BLACK_MAGE: 'blm',
+  SUMMONER: 'smn',
+  RED_MAGE: 'rdm',
+  PICTOMANCER: 'pct',
+  BLUE_MAGE: 'blu',
+}
+
+function directMeta(sourceMeta, modulesPath) {
+  const loaded = require(modulesPath)
+  if (!Array.isArray(loaded.modules)) {
+    throw new Error(`xivanalysis module bundle ${modulesPath} did not export a modules array.`)
+  }
+  return new Meta({
+    modules: () => Promise.resolve({ modules: loaded.modules }),
+    supportedPatches: sourceMeta.supportedPatches,
+    Description: sourceMeta.Description,
+    contributors: sourceMeta.contributors,
+    changelog: sourceMeta.changelog,
+  })
+}
+
+function coreMeta() {
+  return directMeta(
+    AVAILABLE_MODULES.CORE,
+    path.join(XIVA, 'src', 'parser', 'core', 'modules'),
+  )
+}
+
+function jobMeta(job) {
+  const sourceMeta = AVAILABLE_MODULES.JOBS[job]
+  const directory = JOB_MODULE_DIRS[job]
+  if (!sourceMeta || !directory) return null
+  return directMeta(
+    sourceMeta,
+    path.join(XIVA, 'src', 'parser', 'jobs', directory, 'modules'),
+  )
+}
+
+function bossMeta(encounterKey) {
+  if (!encounterKey) return null
+  const sourceMeta = AVAILABLE_MODULES.BOSSES[encounterKey]
+  if (!sourceMeta) return null
+
+  const candidates = [
+    ['dsr', require(path.join(XIVA, 'src', 'parser', 'bosses', 'dsr', 'index.ts')).DSR],
+    ['extrain', require(path.join(XIVA, 'src', 'parser', 'bosses', 'extrain', 'index.tsx')).EX_TRAIN],
+    ['fru', require(path.join(XIVA, 'src', 'parser', 'bosses', 'fru', 'index.tsx')).FRU],
+  ]
+  const match = candidates.find(([, meta]) => meta === sourceMeta)
+  if (!match) return null
+  return directMeta(
+    sourceMeta,
+    path.join(XIVA, 'src', 'parser', 'bosses', match[0], 'modules'),
+  )
+}
 
 // Keep browser detection in React/Scheduler on Node's server path during module loading.
 // Parser only uses window.location.reload on its production error-recovery path.
@@ -298,13 +374,11 @@ async function analyse(input, actorId) {
 
   const adaptedEvents = adaptEvents(report, pull, input.events, input.pull.firstEventTimestamp)
 
-  let meta = AVAILABLE_MODULES.CORE
-  if (pull.encounter.key && AVAILABLE_MODULES.BOSSES[pull.encounter.key]) {
-    meta = meta.merge(AVAILABLE_MODULES.BOSSES[pull.encounter.key])
-  }
-  if (AVAILABLE_MODULES.JOBS[actor.job]) {
-    meta = meta.merge(AVAILABLE_MODULES.JOBS[actor.job])
-  }
+  let meta = coreMeta()
+  const encounterMeta = bossMeta(pull.encounter.key)
+  if (encounterMeta) meta = meta.merge(encounterMeta)
+  const actorMeta = jobMeta(actor.job)
+  if (actorMeta) meta = meta.merge(actorMeta)
 
   const parser = new Parser({ meta, report, pull, actor })
   await parser.configure()
