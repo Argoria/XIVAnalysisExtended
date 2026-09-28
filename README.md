@@ -54,7 +54,7 @@ For a selected player × pull, the server now fetches the complete FFLogs v2 eve
 
 The application does **not** scrape xivanalysis' rendered React output. Opener correctness, DoT-specific uptime, mitigation opportunities, and boss-mechanic findings still need explicit module-specific extractors because upstream does not expose one uniform numeric contract for those concepts. Composite performance scoring remains intentionally absent until those metrics have support/coverage semantics.
 
-The heavyweight runner smoke test is manual-only in GitHub Actions (`xivanalysis runner smoke`) so ordinary application commits do not reinstall xivanalysis' dependency tree. Locally, `npm run analysis:smoke` exercises the isolated runner after `npm run analysis:setup`.
+The heavyweight runner smoke test is manual-only in GitHub Actions (`xivanalysis runner smoke`) so ordinary application commits do not reinstall xivanalysis' dependency tree. The normal `Check` workflow validates the application without initializing the submodule. Locally, `npm run analysis:smoke` exercises the isolated runner after `npm run analysis:setup`.
 
 See [the product and integration design](docs/design.md) for the adapter contract, scoring constraints, and parity requirements. Upstream source remains unmodified in the pinned submodule and retains its MIT license.
 
