@@ -36,6 +36,13 @@ First deaths include ties at the exact timestamp. They are not labeled wipe caus
 
 Pinned upstream revision: `f532855e635bdfb4211cec8128d582dadfdc6a75` (`dawntrail` at initial checkout). Review and test upgrades explicitly.
 
+Current adapter status:
+
+- `server/fflogs/client.ts` can fetch the complete selected-pull v2 event stream with resources, nested ability payloads (`useAbilityIDs: false`), report actor IDs, exact continuation timestamps, and no hostility/data-type filter.
+- `server/xivanalysis/v2-adapter.ts` converts FFLogs v2 metadata into a versioned compatibility bundle. It preserves report-relative event timestamps, derives legacy friendliness flags from fight membership, carries actor game IDs/ownership/instance counts, maps `combatTime` to xivanalysis' parser window, preserves report language for edition selection, and converts v2 `fightPercentage` from its native 0–100 scale.
+- `ReportService.xivanalysisInput()` loads this expensive full stream lazily and caches only successful complete adapter inputs. The normal FFLogs-only pull path does not pay this cost.
+- This is an adapter boundary, not a second analysis engine. The next isolated-runner step must construct upstream `Report`/`Pull`/`Actor` objects and call xivanalysis' own `adaptEvents` and `Parser`.
+
 Observed upstream integration points:
 
 - `src/report.ts`: engine `Report`, `Pull`, and `Actor`; timestamps are epoch milliseconds, actor IDs are strings, and encounters/editions are explicit.
@@ -46,7 +53,7 @@ Observed upstream integration points:
 Recommended sequence:
 
 1. **Compatibility proof:** select one supported GNB pull and one AST pull from a real log. Capture the necessary full event streams, including combatant state, casts, damage, heals, buffs/debuffs, resources, targetability, instances, and prepull events. The death-only MVP stream is insufficient.
-2. **Versioned adapter:** build a v2 report/event source at the upstream boundary. Resolve report-relative timestamps to epoch timestamps, game ability IDs versus report IDs, actor instances and ownership, patch/edition, duty/encounter keys, and initial state. Reuse upstream normalization where equivalence is established. Keep the submodule untouched; put adapter/build glue outside it and maintain any necessary upstream patch explicitly.
+2. **Versioned adapter:** implemented for the FFLogs-v2 compatibility boundary. It preserves report-relative event timestamps for upstream translation, nested game ability IDs, actor IDs/instances/ownership, report language, combat timing, fight progression, and duty metadata. The isolated runner still needs to resolve upstream edition/job/encounter keys and construct actual xivanalysis engine objects. Keep the submodule untouched; put runner/build glue outside it and maintain any necessary upstream patch explicitly.
 3. **Isolated runner:** compile the engine with its own compatible dependencies/build configuration and execute outside the application's React 19 tree. A dedicated worker or isolated bundle must account for browser-dependent modules; “headless” should only be claimed after verified. Configure core, boss, and job modules through upstream metadata, preserving its override/dependency rules.
 4. **Structured extraction:** export module metrics and findings before UI rendering. Preserve unstructured upstream output as “available in full analysis” when a numeric extractor is not supported; do not scrape rendered JSX into invented metrics.
 5. **Parity:** compare fixtures with upstream xivanalysis for the same report, pull, actor, patch, and pinned engine revision. Include a short wipe, a full kill, a death/resurrection, a downtime-heavy boss, a job with no applicable DoT, and incomplete logs. Failures must be local to the affected metric/analysis, not silent green checks.
