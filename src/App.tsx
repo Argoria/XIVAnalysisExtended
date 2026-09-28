@@ -211,16 +211,14 @@ export function App() {
   const performanceFor = (fightId: number, playerId: number) =>
     analyses[fightId]?.performance.find((entry) => entry.playerId === playerId)
 
-  const inspectedDeepByPlayer = useMemo(() => {
+  const inspectedDeepByPlayer = useMemo<Record<number, XivanalysisPlayerAnalysis>>(() => {
     if (!inspected) return {}
-    return Object.fromEntries(
-      inspected.playerIds
-        .map((playerId) => {
-          const result = deepAnalyses[xivanalysisKey(inspected.id, playerId)]
-          return result ? [playerId, result] : null
-        })
-        .filter((entry): entry is [number, XivanalysisPlayerAnalysis] => entry != null),
-    )
+    const byPlayer: Record<number, XivanalysisPlayerAnalysis> = {}
+    for (const playerId of inspected.playerIds) {
+      const result = deepAnalyses[xivanalysisKey(inspected.id, playerId)]
+      if (result) byPlayer[playerId] = result
+    }
+    return byPlayer
   }, [deepAnalyses, inspected])
 
   const deepSummaryByPlayer = useMemo(() => {
