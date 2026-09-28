@@ -1,25 +1,69 @@
-import { ArrowDownRight, Check, ChevronRight, CircleHelp, ExternalLink, Shield, Sparkles } from 'lucide-react'
-import type { Death, Pull, PullAnalysis, Report } from '../../shared/types'
+import {
+  ArrowDownRight,
+  Check,
+  ChevronRight,
+  CircleHelp,
+  ExternalLink,
+  LoaderCircle,
+  Shield,
+  Sparkles,
+} from 'lucide-react'
+import type {
+  Death,
+  Pull,
+  PullAnalysis,
+  Report,
+  XivanalysisPlayerAnalysis,
+  XivanalysisSuggestion,
+} from '../../shared/types'
 import { duration, fflogsLink, percent } from '../format'
 import { Empty, JobBadge } from './ui'
+
+const delay = (ms: number | null) => (ms == null ? '—' : `${(ms / 1000).toFixed(2)}s`)
+const metricPercent = (value: number | null) => (value == null ? '—' : `${value.toFixed(1)}%`)
+const readableLabel = (value: string | null, fallback: string) => {
+  if (!value) return fallback
+  return value
+    .replace(/^(core|gnb|ast|sch|whm|sge|pld|war|drk|mnk|drg|nin|sam|rpr|vpr|brd|mch|dnc|blm|smn|rdm|pct|blu)[.]/, '')
+    .replace(/[._-]+/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
 
 export function PullDetail({
   report,
   pull,
   analysis,
   error,
+  playerId,
+  xivanalysis,
+  xivanalysisLoading = false,
+  xivanalysisError,
+  onSelectPlayer,
 }: {
   report: Report
   pull: Pull
   analysis?: PullAnalysis
   error?: string
+  playerId?: number | null
+  xivanalysis?: XivanalysisPlayerAnalysis
+  xivanalysisLoading?: boolean
+  xivanalysisError?: string
+  onSelectPlayer?: (playerId: number) => void
 }) {
+  const player = playerId == null ? undefined : report.players.find((candidate) => candidate.id === playerId)
+  const xivaLink =
+    report.source !== 'demo' && player
+      ? `https://xivanalysis.com/fflogs/${report.code}/${pull.id}/${player.id}`
+      : null
+
   return (
     <>
       <div className="eyebrow">PULL REVIEW</div>
       <h2>
         Pull {pull.id}{' '}
-        <span className={`pill ${pull.kill ? 'success' : 'neutral'}`}>{pull.kill ? 'Clear' : 'Wipe'}</span>
+        <span className={`pill ${pull.kill ? 'success' : 'neutral'}`}>
+          {pull.kill ? 'Clear' : 'Wipe'}
+        </span>
       </h2>
       <p className="detail-subtitle">
         {pull.name} · {duration(pull.endTime - pull.startTime)} · {percent(pull.fightRemaining)} fight
@@ -56,6 +100,7 @@ export function PullDetail({
               No player deaths recorded in this pull.
             </div>
           )}
+
           <div className="detail-divider" />
           <h3>Limit Break</h3>
           <p className="muted small">
@@ -75,32 +120,171 @@ export function PullDetail({
               require job analysis.
             </p>
           )}
+
           <div className="detail-divider" />
           <h3>Job performance</h3>
-          <p className="muted small">
-            Opener, mitigation use, uptime, and score: <strong>not analyzed</strong>.
-          </p>
-          {report.source !== 'demo' && (
-            <div className="xiva-links">
-              {report.players
-                .filter((p) => pull.playerIds.includes(p.id))
-                .map((p) => (
-                  <a
-                    key={p.id}
-                    href={`https://xivanalysis.com/fflogs/${report.code}/${pull.id}/${p.id}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    <JobBadge player={p} />
-                    <span>{p.name}</span>
-                    <ExternalLink size={13} />
+          {!player ? (
+            <>
+              <p className="muted small">
+                Choose a participating player to run the pinned xivanalysis engine for this pull. Deep analysis
+                is loaded on demand rather than for every player automatically.
+              </p>
+              <div className="xiva-player-grid">
+                {report.players
+                  .filter((candidate) => pull.playerIds.includes(candidate.id))
+                  .map((candidate) => (
+                    <button
+                      key={candidate.id}
+                      className="xiva-player"
+                      onClick={() => onSelectPlayer?.(candidate.id)}
+                    >
+                      <JobBadge player={candidate} />
+                      <span>{candidate.name}</span>
+                      <ChevronRight size={14} />
+                    </button>
+                  ))}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="xiva-player-heading">
+                <JobBadge player={player} />
+                <div>
+                  <strong>{player.name}</strong>
+                  <span>{player.job} · player × pull analysis</span>
+                </div>
+                {xivaLink && (
+                  <a href={xivaLink} target="_blank" rel="noreferrer" aria-label="Open in xivanalysis">
+                    <ExternalLink size={14} />
                   </a>
-                ))}
-            </div>
+                )}
+              </div>
+              {report.source === 'demo' ? (
+                <p className="muted small">Deep job analysis is not fabricated for synthetic demo data.</p>
+              ) : xivanalysisLoading ? (
+                <div className="xiva-state">
+                  <LoaderCircle size={17} className="spin" />
+                  Running xivanalysis for this player and pull…
+                </div>
+              ) : xivanalysisError ? (
+                <div className="notice error xiva-error">{xivanalysisError}</div>
+              ) : xivanalysis ? (
+                <XivanalysisDetail analysis={xivanalysis} />
+              ) : (
+                <p className="muted small">xivanalysis data has not been loaded for this player.</p>
+              )}
+            </>
           )}
         </>
       )}
     </>
+  )
+}
+
+function XivanalysisDetail({ analysis }: { analysis: XivanalysisPlayerAnalysis }) {
+  const uptime = analysis.uptime
+  const visibleSuggestions = analysis.suggestions.filter((suggestion) => suggestion.severityName !== 'ignore')
+  return (
+    <div className="xiva-analysis">
+      <div className="xiva-metrics">
+        <div>
+          <span>GCD uptime</span>
+          <strong>{metricPercent(uptime.gcdUptimePercent)}</strong>
+          <small>{uptime.gcdCount == null ? 'No GCD count' : `${uptime.gcdCount} GCDs observed`}</small>
+        </div>
+        <div>
+          <span>GCD delay</span>
+          <strong>{delay(uptime.gcdDowntimeMs)}</strong>
+          <small>{uptime.gcdDowntimeCount == null ? 'Unavailable' : `${uptime.gcdDowntimeCount} issues`}</small>
+        </div>
+        <div>
+          <span>Weaving delay</span>
+          <strong>{delay(uptime.weavingDelayMs)}</strong>
+          <small>{uptime.weavingIssueCount == null ? 'Unavailable' : `${uptime.weavingIssueCount} issues`}</small>
+        </div>
+        <div>
+          <span>Interrupted casts</span>
+          <strong>{delay(uptime.interruptedCastDelayMs)}</strong>
+          <small>
+            {uptime.interruptedCastCount == null ? 'Unavailable' : `${uptime.interruptedCastCount} issues`}
+          </small>
+        </div>
+      </div>
+
+      <div className="xiva-section">
+        <div className="xiva-section-heading">
+          <h4>Checklist</h4>
+          <span>
+            {analysis.checklist.filter((rule) => rule.passed).length}/{analysis.checklist.length} passing
+          </span>
+        </div>
+        {analysis.checklist.length ? (
+          <div className="xiva-rules">
+            {analysis.checklist.map((rule, index) => (
+              <div className="xiva-rule" key={`${rule.label ?? 'rule'}:${index}`}>
+                <span className={`xiva-rule-status ${rule.passed ? 'pass' : 'fail'}`}>
+                  {rule.passed ? <Check size={13} /> : '×'}
+                </span>
+                <div>
+                  <strong>{readableLabel(rule.label, `Rule ${index + 1}`)}</strong>
+                  <small>
+                    {rule.percent.toFixed(1)}% · target {rule.target.toFixed(1)}%
+                  </small>
+                  {rule.requirements.length > 1 && (
+                    <ul>
+                      {rule.requirements.map((requirement, requirementIndex) => (
+                        <li key={`${requirement.label ?? 'requirement'}:${requirementIndex}`}>
+                          <span>
+                            {readableLabel(requirement.label, `Requirement ${requirementIndex + 1}`)}
+                          </span>
+                          <strong>{requirement.percent.toFixed(1)}%</strong>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="muted small">No checklist rules were emitted for this job and observed pull.</p>
+        )}
+      </div>
+
+      <div className="xiva-section">
+        <div className="xiva-section-heading">
+          <h4>Suggestions</h4>
+          <span>{visibleSuggestions.length}</span>
+        </div>
+        {visibleSuggestions.length ? (
+          <div className="xiva-suggestions">
+            {visibleSuggestions.map((suggestion, index) => (
+              <SuggestionDetail key={index} suggestion={suggestion} />
+            ))}
+          </div>
+        ) : (
+          <p className="muted small">No visible xivanalysis suggestions were emitted.</p>
+        )}
+      </div>
+
+      <p className="xiva-provenance">
+        xivanalysis engine {analysis.engineRevision.slice(0, 8)} · adapter {analysis.adapterVersion} ·{' '}
+        {analysis.adaptedEventCount.toLocaleString()} normalized events · {analysis.moduleCount} modules
+      </p>
+    </div>
+  )
+}
+
+function SuggestionDetail({ suggestion }: { suggestion: XivanalysisSuggestion }) {
+  return (
+    <div className={`xiva-suggestion severity-${suggestion.severityName}`}>
+      <div>
+        <strong>{suggestion.content || suggestion.kind}</strong>
+        <span className="pill neutral">{suggestion.severityName}</span>
+      </div>
+      {suggestion.why && suggestion.why !== suggestion.content && <p>{suggestion.why}</p>}
+      {suggestion.value != null && <small>Observed value: {suggestion.value}</small>}
+    </div>
   )
 }
 
@@ -180,26 +364,26 @@ export function Coverage() {
           Available now
         </h3>
         <p>
-          Player deaths, recorded killing abilities, first deaths, recent incoming damage,
-          participation-adjusted death frequency, boss HP, fight progression, and Limit Break entity casts.
+          FFLogs deaths, killing abilities, first deaths, incoming-damage evidence, participation-adjusted
+          death frequency, boss progression, Limit Break casts, and FFLogs DPS-family metrics.
         </p>
         <p>
-          A session currently means one FFLogs report, restricted to the selected boss pulls. Non-boss
-          segments, pets, NPCs, and Limit Break entities do not enter the player roster.
+          For an inspected player × pull, the pinned xivanalysis engine now provides GCD uptime, GCD delay,
+          weaving/interruption issues, checklist percentages, and structured suggestions.
         </p>
       </div>
       <div className="coverage-block">
         <h3>
           <ArrowDownRight size={18} />
-          Next: xivanalysis modules
+          Next extraction work
         </h3>
         <p>
-          The upstream source is pinned in the repository. Its parser is not running in this MVP. Per-job and
-          boss metrics need event normalization and structured result extraction.
+          xivanalysis does not expose one universal opener-correctness value across jobs. Opener, mitigation,
+          DoT-specific uptime, and boss-mechanic extractors will be mapped from the relevant upstream modules
+          instead of inferred from rendered JSX.
         </p>
         <p>
-          Unsupported, incomplete, and not-applicable metrics will remain separate states. A missing
-          mitigation or uptime metric will never silently become a zero.
+          Unsupported, incomplete, and not-applicable metrics remain distinct from a measured zero.
         </p>
       </div>
       <div className="coverage-block">
@@ -230,8 +414,8 @@ export function Coverage() {
           30-second opener gives evidence about that opener; it does not establish full-fight performance.
         </p>
         <p>
-          No performance score is calculated in this MVP. Later scores need job-specific opportunity counts,
-          encounter windows, patch versions, and enough observed mechanics to be meaningful.
+          No composite performance score is published yet. Later scoring needs versioned job-specific metrics,
+          encounter opportunity counts, support state, and enough observed mechanics to be meaningful.
         </p>
       </div>
     </>
