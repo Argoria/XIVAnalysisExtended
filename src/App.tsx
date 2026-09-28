@@ -13,8 +13,10 @@ import {
   Layers3,
   LayoutDashboard,
   LoaderCircle,
+  Moon,
   RefreshCw,
   Shield,
+  Sun,
   Skull,
   Sparkles,
   Swords,
@@ -62,6 +64,11 @@ export function App() {
     'boss' | 'dps' | 'uptime' | 'fewest-deaths' | 'most-deaths'
   >('boss')
   const [helpOpen, setHelpOpen] = useState(false)
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    if (typeof window === 'undefined') return 'dark'
+    const saved = window.localStorage.getItem('pullwise-theme')
+    return saved === 'light' || saved === 'dark' ? saved : 'dark'
+  })
   const [xivanalysis, setXivanalysis] = useState<XivanalysisPlayerAnalysis | null>(null)
   const [xivanalysisError, setXivanalysisError] = useState('')
   const [xivanalysisLoading, setXivanalysisLoading] = useState(false)
@@ -73,6 +80,11 @@ export function App() {
   const xivanalysisController = useRef<AbortController | null>(null)
   const deepBatchController = useRef<AbortController | null>(null)
   const detailRef = useRef<HTMLElement>(null)
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    window.localStorage.setItem('pullwise-theme', theme)
+  }, [theme])
+
   useEffect(() => {
     api
       .health()
@@ -527,9 +539,21 @@ export function App() {
             Workspace <ChevronRight size={13} />
             <span>Raid review</span>
           </div>
-          <span className="version">
-            FFLogs MVP <span>v0.1</span>
-          </span>
+          <div className="topbar-actions">
+            <button
+              className="theme-toggle"
+              type="button"
+              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              onClick={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
+            >
+              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+              <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
+            </button>
+            <span className="version">
+              FFLogs MVP <span>v0.1</span>
+            </span>
+          </div>
         </header>
         <div className="main-content">
           <section className="report-loader" aria-label="Load a report">
