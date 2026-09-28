@@ -14,6 +14,7 @@ import {
   LayoutDashboard,
   LoaderCircle,
   Moon,
+  Type,
   RefreshCw,
   Shield,
   Sun,
@@ -69,6 +70,11 @@ export function App() {
     const saved = window.localStorage.getItem('pullwise-theme')
     return saved === 'light' || saved === 'dark' ? saved : 'dark'
   })
+  const [textSize, setTextSize] = useState<'comfortable' | 'large' | 'extra-large'>(() => {
+    if (typeof window === 'undefined') return 'comfortable'
+    const saved = window.localStorage.getItem('pullwise-text-size')
+    return saved === 'large' || saved === 'extra-large' ? saved : 'comfortable'
+  })
   const [xivanalysis, setXivanalysis] = useState<XivanalysisPlayerAnalysis | null>(null)
   const [xivanalysisError, setXivanalysisError] = useState('')
   const [xivanalysisLoading, setXivanalysisLoading] = useState(false)
@@ -84,6 +90,10 @@ export function App() {
     document.documentElement.dataset.theme = theme
     window.localStorage.setItem('pullwise-theme', theme)
   }, [theme])
+  useEffect(() => {
+    document.documentElement.dataset.textSize = textSize
+    window.localStorage.setItem('pullwise-text-size', textSize)
+  }, [textSize])
 
   useEffect(() => {
     api
@@ -540,6 +550,19 @@ export function App() {
             <span>Raid review</span>
           </div>
           <div className="topbar-actions">
+            <label className="text-size-control">
+              <Type size={16} aria-hidden="true" />
+              <span>Text size</span>
+              <select
+                aria-label="Text size"
+                value={textSize}
+                onChange={(event) => setTextSize(event.target.value as typeof textSize)}
+              >
+                <option value="comfortable">Comfortable</option>
+                <option value="large">Large</option>
+                <option value="extra-large">Extra large</option>
+              </select>
+            </label>
             <button
               className="theme-toggle"
               type="button"

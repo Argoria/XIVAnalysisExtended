@@ -5,7 +5,8 @@
   color: #26343c;
   background: #f5f6f7;
   font-synthesis: none;
-  font-size: 14px;
+  font-size: 16px;
+  --text-scale: 1.25;
   --teal: #177e70;
   --muted: #7b858c;
   --line: #e9edef;
@@ -87,11 +88,11 @@ h2 {
   font-weight: 750;
 }
 h3 {
-  font-size: 15px;
+  font-size: max(12px, calc(15px * var(--text-scale)));
   letter-spacing: -0.2px;
 }
 .eyebrow {
-  font-size: 10px;
+  font-size: max(12px, calc(10px * var(--text-scale)));
   font-weight: 700;
   letter-spacing: 1.55px;
   line-height: 1.5;
@@ -101,7 +102,7 @@ h3 {
   color: var(--muted);
 }
 .small {
-  font-size: 12px;
+  font-size: max(12px, calc(12px * var(--text-scale)));
   line-height: 1.7;
 }
 .app-shell {
@@ -109,7 +110,7 @@ h3 {
   min-height: 100vh;
 }
 .sidebar {
-  width: 246px;
+  width: 278px;
   background: #141d24;
   color: #a2adb6;
   padding: 31px 21px 18px;
@@ -140,7 +141,7 @@ h3 {
   color: #90ceb0;
 }
 .sidebar-caption {
-  font-size: 8px;
+  font-size: max(12px, calc(8px * var(--text-scale)));
   letter-spacing: 1.4px;
   margin: 18px 0 34px;
   color: #798892;
@@ -154,7 +155,7 @@ h3 {
   padding: 13px 13px;
   border-radius: 6px;
   margin-bottom: 6px;
-  font-size: 12px;
+  font-size: max(12px, calc(12px * var(--text-scale)));
   text-align: left;
   font-weight: 500;
   color: #a8b3bc;
@@ -179,24 +180,24 @@ h3 {
   justify-content: space-between;
   align-items: center;
   padding: 0 10px;
-  font-size: 10px;
+  font-size: max(12px, calc(10px * var(--text-scale)));
 }
 .sidebar-section .eyebrow {
-  font-size: 9px;
+  font-size: max(12px, calc(9px * var(--text-scale)));
   color: #8897a2;
 }
 .selection-actions {
   display: flex;
   gap: 8px;
   padding: 12px 10px 15px;
-  font-size: 10px;
+  font-size: max(12px, calc(10px * var(--text-scale)));
   align-items: center;
   color: #748a91;
 }
 .selection-actions button {
   padding: 0;
   color: #a2b9bc;
-  font-size: 10px;
+  font-size: max(12px, calc(10px * var(--text-scale)));
 }
 .selection-actions button:hover {
   color: #c6edd9;
@@ -215,7 +216,7 @@ h3 {
   padding: 10px 9px;
   border-radius: 5px;
   margin-bottom: 4px;
-  font-size: 11px;
+  font-size: max(12px, calc(11px * var(--text-scale)));
   cursor: pointer;
 }
 .pull-option.selected {
@@ -231,16 +232,16 @@ h3 {
 .pull-option small {
   display: block;
   color: #7e919b;
-  font-size: 9px;
+  font-size: max(12px, calc(9px * var(--text-scale)));
   margin-top: 3px;
-  max-width: 110px;
+  max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .remaining {
   margin-left: auto;
-  font-size: 10px;
+  font-size: max(12px, calc(10px * var(--text-scale)));
   font-variant-numeric: tabular-nums;
   color: #98aab2;
 }
@@ -254,7 +255,7 @@ h3 {
   border-top: 1px solid #293239;
 }
 .source-status {
-  font-size: 9px;
+  font-size: max(12px, calc(9px * var(--text-scale)));
   display: flex;
   align-items: center;
   gap: 7px;
@@ -274,7 +275,7 @@ h3 {
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 9px;
+  font-size: max(12px, calc(9px * var(--text-scale)));
   width: 100%;
   text-align: left;
   padding: 10px 5px;
@@ -287,7 +288,7 @@ h3 {
   color: #d6e5df;
 }
 main {
-  margin-left: 246px;
+  margin-left: 278px;
   flex: 1;
   min-width: 0;
 }
@@ -304,14 +305,14 @@ main {
   display: flex;
   align-items: center;
   gap: 13px;
-  font-size: 11px;
+  font-size: max(12px, calc(11px * var(--text-scale)));
   color: #8b959b;
 }
 .breadcrumbs span {
   color: #34434b;
 }
 .version {
-  font-size: 10px;
+  font-size: max(12px, calc(10px * var(--text-scale)));
   color: #7c8990;
 }
 .version span {
@@ -319,7 +320,7 @@ main {
   background: #f1f4f5;
   padding: 3px 6px;
   border-radius: 4px;
-  font-size: 9px;
+  font-size: max(12px, calc(9px * var(--text-scale)));
 }
 .main-content {
   padding: 25px 42px 22px;
@@ -342,7 +343,7 @@ main {
   align-items: center;
   white-space: nowrap;
   color: #40535b;
-  font-size: 11px;
+  font-size: max(12px, calc(11px * var(--text-scale)));
 }
 .loader-label svg {
   color: #719089;
@@ -360,7 +361,7 @@ main {
   min-width: 0;
   flex: 1;
   color: #374952;
-  font-size: 11px;
+  font-size: max(12px, calc(11px * var(--text-scale)));
 }
 .report-loader input::placeholder {
   color: #9aa5aa;
@@ -374,7 +375,7 @@ main {
   border: 1px solid #dfe6e5;
   border-radius: 5px;
   background: #fff;
-  font-size: 11px;
+  font-size: max(12px, calc(11px * var(--text-scale)));
   font-weight: 600;
   white-space: nowrap;
 }
@@ -395,7 +396,7 @@ main {
   align-items: center;
   gap: 6px;
   white-space: nowrap;
-  font-size: 11px;
+  font-size: max(12px, calc(11px * var(--text-scale)));
   color: #53726d;
   font-weight: 600;
 }
@@ -406,7 +407,7 @@ main {
   display: flex;
   align-items: center;
   gap: 9px;
-  font-size: 10px;
+  font-size: max(12px, calc(10px * var(--text-scale)));
   line-height: 1.6;
   padding: 9px 12px;
   color: #82735a;
@@ -421,7 +422,7 @@ main {
   flex-shrink: 0;
 }
 .demo-tag {
-  font-size: 8px;
+  font-size: max(12px, calc(8px * var(--text-scale)));
   letter-spacing: 0.8px;
   margin-left: auto;
   white-space: nowrap;
@@ -437,12 +438,12 @@ main {
   margin: 31px 0 25px;
 }
 .page-heading .eyebrow {
-  font-size: 9px;
+  font-size: max(12px, calc(9px * var(--text-scale)));
   color: #778a8d;
   margin-bottom: 7px;
 }
 .page-heading p {
-  font-size: 12px;
+  font-size: max(12px, calc(12px * var(--text-scale)));
   color: #879298;
   margin-top: 8px;
 }
@@ -451,7 +452,7 @@ main {
   align-items: flex-end;
   gap: 12px;
   flex-direction: column;
-  font-size: 10px;
+  font-size: max(12px, calc(10px * var(--text-scale)));
   color: #8a9499;
 }
 .pill {
@@ -459,7 +460,7 @@ main {
   align-items: center;
   gap: 6px;
   padding: 5px 8px;
-  font-size: 10px;
+  font-size: max(12px, calc(10px * var(--text-scale)));
   border-radius: 4px;
   font-weight: 500;
   white-space: nowrap;
@@ -494,7 +495,7 @@ main {
   align-items: center;
 }
 .filter-bar label {
-  font-size: 10px;
+  font-size: max(12px, calc(10px * var(--text-scale)));
   color: #8a969d;
 }
 select {
@@ -502,7 +503,7 @@ select {
   background: #fafbfc;
   border-radius: 4px;
   color: #3b505b;
-  font-size: 11px;
+  font-size: max(12px, calc(11px * var(--text-scale)));
   padding: 8px 26px 8px 10px;
   max-width: 280px;
 }
@@ -511,7 +512,7 @@ select {
   align-items: center;
   gap: 8px;
   margin-left: auto;
-  font-size: 10px;
+  font-size: max(12px, calc(10px * var(--text-scale)));
   color: #8a969c;
 }
 .filter-count svg {
@@ -555,7 +556,7 @@ select {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: max(12px, calc(11px * var(--text-scale)));
   color: #798990;
   gap: 6px;
 }
@@ -588,7 +589,7 @@ select {
   color: #2c886d;
 }
 .stat-detail {
-  font-size: 9px;
+  font-size: max(12px, calc(9px * var(--text-scale)));
   color: #93a0a5;
 }
 .card {
@@ -605,15 +606,15 @@ select {
   gap: 15px;
 }
 .card-heading .eyebrow {
-  font-size: 8px;
+  font-size: max(12px, calc(8px * var(--text-scale)));
   margin-bottom: 7px;
   color: #91a0a5;
 }
 .card-heading h2 {
-  font-size: 16px;
+  font-size: max(12px, calc(16px * var(--text-scale)));
 }
 .card-heading p {
-  font-size: 11px;
+  font-size: max(12px, calc(11px * var(--text-scale)));
   color: #8d9a9e;
   margin-top: 7px;
   line-height: 1.5;
@@ -622,7 +623,7 @@ select {
   margin-bottom: 22px;
 }
 .chart-legend {
-  font-size: 9px;
+  font-size: max(12px, calc(9px * var(--text-scale)));
   display: flex;
   align-items: center;
   gap: 7px;
@@ -663,7 +664,7 @@ select {
 }
 .chart-value {
   color: #7b9590;
-  font-size: 10px;
+  font-size: max(12px, calc(10px * var(--text-scale)));
   font-weight: 500;
   min-height: 21px;
   display: flex;
@@ -698,11 +699,11 @@ select {
 }
 .chart-label {
   padding-top: 10px;
-  font-size: 10px;
+  font-size: max(12px, calc(10px * var(--text-scale)));
   color: #536c73;
 }
 .chart-duration {
-  font-size: 8px;
+  font-size: max(12px, calc(8px * var(--text-scale)));
   margin-top: 4px;
   color: #a3aeb2;
   font-variant-numeric: tabular-nums;
@@ -712,14 +713,14 @@ select {
   justify-content: space-between;
   align-items: center;
   padding: 14px 25px 17px;
-  font-size: 9px;
+  font-size: max(12px, calc(9px * var(--text-scale)));
   color: #a4aeb3;
 }
 .chart-footnote > span {
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 9px;
+  font-size: max(12px, calc(9px * var(--text-scale)));
 }
 .insights-grid {
   display: grid;
@@ -752,7 +753,7 @@ select {
   margin: 15px 0;
 }
 .rank {
-  font-size: 10px;
+  font-size: max(12px, calc(10px * var(--text-scale)));
   color: #b2bbc0;
   padding-top: 2px;
   font-variant-numeric: tabular-nums;
@@ -765,7 +766,7 @@ select {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  font-size: 11px;
+  font-size: max(12px, calc(11px * var(--text-scale)));
 }
 .cause-body strong {
   font-weight: 600;
@@ -774,11 +775,11 @@ select {
   white-space: nowrap;
 }
 .cause-body small {
-  font-size: 9px;
+  font-size: max(12px, calc(9px * var(--text-scale)));
   color: #9ba5ab;
 }
 .cause-body > div:first-child > span {
-  font-size: 11px;
+  font-size: max(12px, calc(11px * var(--text-scale)));
   font-weight: 600;
   white-space: nowrap;
 }
@@ -801,7 +802,7 @@ select {
 .card-footer {
   border-top: 1px solid #f0f3f4;
   padding: 14px 24px;
-  font-size: 9px;
+  font-size: max(12px, calc(9px * var(--text-scale)));
   color: #97a3a9;
   display: flex;
   align-items: center;
@@ -812,7 +813,7 @@ select {
   width: 100%;
   justify-content: space-between;
   color: #537d72;
-  font-size: 10px;
+  font-size: max(12px, calc(10px * var(--text-scale)));
 }
 .footer-button:hover {
   background: #f7faf9;
@@ -845,7 +846,7 @@ select {
   flex-shrink: 0;
   border: 1px solid #e6e9eb;
   border-radius: 6px;
-  font-size: 9px;
+  font-size: max(12px, calc(9px * var(--text-scale)));
   font-weight: 700;
   letter-spacing: 0.3px;
   background: #f4f6f7;
@@ -867,12 +868,12 @@ select {
   border-color: #f3e4df;
 }
 .ranked-player > div > strong {
-  font-size: 11px;
+  font-size: max(12px, calc(11px * var(--text-scale)));
   font-weight: 600;
 }
 .ranked-player small {
   display: block;
-  font-size: 9px;
+  font-size: max(12px, calc(9px * var(--text-scale)));
   color: #9aa7ad;
   margin-top: 4px;
 }
@@ -911,11 +912,11 @@ select {
   background: #f8faf8;
   color: #6b897b;
   border-color: #d6e3db;
-  font-size: 10px;
+  font-size: max(12px, calc(10px * var(--text-scale)));
 }
 .next-step-actions .text-button {
   justify-content: center;
-  font-size: 9px;
+  font-size: max(12px, calc(9px * var(--text-scale)));
 }
 .deep-inline-error {
   color: #a45f52 !important;
@@ -942,17 +943,17 @@ select {
   flex-shrink: 0;
 }
 .next-step .eyebrow {
-  font-size: 8px;
+  font-size: max(12px, calc(8px * var(--text-scale)));
   color: #83a090;
   margin-bottom: 4px;
 }
 .next-step h3 {
-  font-size: 12px;
+  font-size: max(12px, calc(12px * var(--text-scale)));
   color: #5c7468;
   font-weight: 650;
 }
 .next-step p {
-  font-size: 10px;
+  font-size: max(12px, calc(10px * var(--text-scale)));
   color: #89a096;
   margin-top: 6px;
   line-height: 1.5;
@@ -962,7 +963,7 @@ select {
   background: #f8faf8;
   color: #6b897b;
   border-color: #d6e3db;
-  font-size: 10px;
+  font-size: max(12px, calc(10px * var(--text-scale)));
 }
 .page-footer {
   display: flex;
@@ -970,7 +971,7 @@ select {
   gap: 14px;
   padding: 23px 0 0;
   color: #a2aeb4;
-  font-size: 8px;
+  font-size: max(12px, calc(8px * var(--text-scale)));
   line-height: 1.5;
 }
 .page-footer > span:first-child {
@@ -990,7 +991,7 @@ select {
   color: #52748a;
   border-radius: 6px;
   padding: 14px 17px;
-  font-size: 12px;
+  font-size: max(12px, calc(12px * var(--text-scale)));
   line-height: 1.6;
   margin: 13px 0;
 }
@@ -1003,7 +1004,7 @@ select {
   margin-left: auto;
 }
 .notice p {
-  font-size: 11px;
+  font-size: max(12px, calc(11px * var(--text-scale)));
   margin-top: 5px;
 }
 .empty-state {
@@ -1019,7 +1020,7 @@ select {
   color: #647b83;
 }
 .empty-state p {
-  font-size: 12px;
+  font-size: max(12px, calc(12px * var(--text-scale)));
   line-height: 1.6;
 }
 .table-actions {
@@ -1038,7 +1039,7 @@ select {
   max-width: 220px;
   margin-top: 4px;
   color: #a8685d;
-  font-size: 8px;
+  font-size: max(12px, calc(8px * var(--text-scale)));
   line-height: 1.35;
 }
 
@@ -1049,10 +1050,10 @@ table {
   width: 100%;
   border-collapse: collapse;
   text-align: left;
-  font-size: 12px;
+  font-size: max(12px, calc(12px * var(--text-scale)));
 }
 th {
-  font-size: 10px;
+  font-size: max(12px, calc(10px * var(--text-scale)));
   color: #8b9aa3;
   background: #fafbfc;
   font-weight: 500;
@@ -1080,7 +1081,7 @@ tbody tr:last-child td {
 }
 .table-subtext {
   display: block;
-  font-size: 10px;
+  font-size: max(12px, calc(10px * var(--text-scale)));
   color: #95a3ab;
   margin-top: 4px;
 }
@@ -1121,7 +1122,7 @@ tbody tr:last-child td {
   width: 42px;
   height: 32px;
   border-radius: 5px;
-  font-size: 12px;
+  font-size: max(12px, calc(12px * var(--text-scale)));
   font-weight: 600;
 }
 .matrix-cell:hover {
@@ -1150,7 +1151,7 @@ tbody tr:last-child td {
 }
 .deep-rollup-heading .eyebrow {
   color: #8ca39a;
-  font-size: 8px;
+  font-size: max(12px, calc(8px * var(--text-scale)));
   margin-bottom: 5px;
 }
 .deep-rollup-heading h3,
@@ -1179,7 +1180,7 @@ tbody tr:last-child td {
 }
 .deep-rollup-metrics span {
   color: #8b9da4;
-  font-size: 8px;
+  font-size: max(12px, calc(8px * var(--text-scale)));
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
@@ -1190,7 +1191,7 @@ tbody tr:last-child td {
 }
 .deep-rollup-metrics small {
   color: #99a6ab;
-  font-size: 8px;
+  font-size: max(12px, calc(8px * var(--text-scale)));
   line-height: 1.45;
 }
 .deep-rollup-error {
@@ -1216,7 +1217,7 @@ tbody tr:last-child td {
   padding: 13px 0;
   width: 100%;
   border-bottom: 1px solid #eff3f4;
-  font-size: 11px;
+  font-size: max(12px, calc(11px * var(--text-scale)));
   color: #718995;
 }
 .player-history > button:hover {
@@ -1248,7 +1249,7 @@ tbody tr:last-child td {
 }
 .detail-drawer > .eyebrow {
   color: #83a196;
-  font-size: 9px;
+  font-size: max(12px, calc(9px * var(--text-scale)));
   margin-bottom: 9px;
 }
 .detail-drawer > h2 {
@@ -1258,7 +1259,7 @@ tbody tr:last-child td {
   gap: 15px;
 }
 .detail-drawer > .detail-subtitle {
-  font-size: 12px;
+  font-size: max(12px, calc(12px * var(--text-scale)));
   line-height: 1.7;
   color: #8a9ba3;
   margin: 12px 0 18px;
@@ -1281,7 +1282,7 @@ tbody tr:last-child td {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  font-size: 11px;
+  font-size: max(12px, calc(11px * var(--text-scale)));
   color: #448873;
 }
 .external-link:hover {
@@ -1316,7 +1317,7 @@ tbody tr:last-child td {
   transform: rotate(90deg);
 }
 .death-time {
-  font-size: 11px;
+  font-size: max(12px, calc(11px * var(--text-scale)));
   font-variant-numeric: tabular-nums;
   color: #a78880;
   align-self: flex-start;
@@ -1326,34 +1327,34 @@ tbody tr:last-child td {
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 12px;
+  font-size: max(12px, calc(12px * var(--text-scale)));
   font-weight: 600;
   flex-wrap: wrap;
 }
 .death-name > span {
-  font-size: 9px;
+  font-size: max(12px, calc(9px * var(--text-scale)));
   color: #9daab0;
   font-weight: 400;
 }
 .death-name > .first-tag {
-  font-size: 8px;
+  font-size: max(12px, calc(8px * var(--text-scale)));
   color: #b3805e;
   background: #f5ebdc;
   padding: 3px 5px;
   border-radius: 3px;
 }
 .death-entry summary p {
-  font-size: 11px;
+  font-size: max(12px, calc(11px * var(--text-scale)));
   color: #9a746a;
   margin-top: 6px;
 }
 .death-evidence {
   padding: 16px;
-  font-size: 11px;
+  font-size: max(12px, calc(11px * var(--text-scale)));
   border-top: 1px solid #edf1f3;
 }
 .evidence-label {
-  font-size: 9px;
+  font-size: max(12px, calc(9px * var(--text-scale)));
   background: #f0f5f2;
   color: #7f9b8c;
   padding: 7px 9px;
@@ -1361,7 +1362,7 @@ tbody tr:last-child td {
   margin-bottom: 17px;
 }
 .death-evidence h4 {
-  font-size: 10px;
+  font-size: max(12px, calc(10px * var(--text-scale)));
   font-weight: 500;
   color: #8699a1;
   margin: 0 0 10px;
@@ -1377,7 +1378,7 @@ tbody tr:last-child td {
   align-items: flex-start;
   padding: 11px 0;
   border-bottom: 1px solid #eef3f4;
-  font-size: 10px;
+  font-size: max(12px, calc(10px * var(--text-scale)));
 }
 .death-evidence li > span {
   color: #a7b4ba;
@@ -1392,7 +1393,7 @@ tbody tr:last-child td {
 }
 .death-evidence li small {
   display: block;
-  font-size: 9px;
+  font-size: max(12px, calc(9px * var(--text-scale)));
   color: #a8b4b9;
   margin-top: 4px;
 }
@@ -1400,7 +1401,7 @@ tbody tr:last-child td {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 12px;
+  font-size: max(12px, calc(12px * var(--text-scale)));
   padding: 20px;
   background: #eef6f0;
   color: #6e9579;
@@ -1415,7 +1416,7 @@ tbody tr:last-child td {
   background: #f4f1f9;
   border: 1px solid #ede7f5;
   border-radius: 5px;
-  font-size: 11px;
+  font-size: max(12px, calc(11px * var(--text-scale)));
   color: #9485a8;
 }
 .lb-use strong {
@@ -1440,7 +1441,7 @@ tbody tr:last-child td {
   border: 1px solid #e6ecee;
   border-radius: 4px;
   padding: 8px;
-  font-size: 11px;
+  font-size: max(12px, calc(11px * var(--text-scale)));
   color: #748e96;
 }
 .xiva-links > a:hover {
@@ -1491,10 +1492,10 @@ tbody tr:last-child td {
   gap: 3px;
 }
 .xiva-player-heading strong {
-  font-size: 12px;
+  font-size: max(12px, calc(12px * var(--text-scale)));
 }
 .xiva-player-heading span {
-  font-size: 9px;
+  font-size: max(12px, calc(9px * var(--text-scale)));
   color: #90a0a7;
 }
 .xiva-player-heading > a {
@@ -1507,7 +1508,7 @@ tbody tr:last-child td {
   align-items: center;
   padding: 16px 0;
   color: #7a9199;
-  font-size: 11px;
+  font-size: max(12px, calc(11px * var(--text-scale)));
 }
 .xiva-error {
   margin: 12px 0 0;
@@ -1530,7 +1531,7 @@ tbody tr:last-child td {
   gap: 4px;
 }
 .xiva-metrics span {
-  font-size: 9px;
+  font-size: max(12px, calc(9px * var(--text-scale)));
   color: #8c9ca3;
   text-transform: uppercase;
   letter-spacing: 0.35px;
@@ -1541,7 +1542,7 @@ tbody tr:last-child td {
   font-variant-numeric: tabular-nums;
 }
 .xiva-metrics small {
-  font-size: 9px;
+  font-size: max(12px, calc(9px * var(--text-scale)));
   color: #9aa8ad;
 }
 .xiva-section {
@@ -1557,12 +1558,12 @@ tbody tr:last-child td {
   margin-bottom: 10px;
 }
 .xiva-section-heading h4 {
-  font-size: 11px;
+  font-size: max(12px, calc(11px * var(--text-scale)));
   margin: 0;
 }
 .xiva-section-heading span {
   color: #93a2a8;
-  font-size: 9px;
+  font-size: max(12px, calc(9px * var(--text-scale)));
 }
 .xiva-rules,
 .xiva-suggestions {
@@ -1584,7 +1585,7 @@ tbody tr:last-child td {
   border-radius: 50%;
   display: grid;
   place-items: center;
-  font-size: 13px;
+  font-size: max(12px, calc(13px * var(--text-scale)));
   background: #f6e8e5;
   color: #b56e65;
 }
@@ -1597,13 +1598,13 @@ tbody tr:last-child td {
 }
 .xiva-rule strong {
   display: block;
-  font-size: 10px;
+  font-size: max(12px, calc(10px * var(--text-scale)));
   color: #536b74;
 }
 .xiva-rule small {
   display: block;
   margin-top: 3px;
-  font-size: 9px;
+  font-size: max(12px, calc(9px * var(--text-scale)));
   color: #96a4aa;
 }
 .xiva-rule ul {
@@ -1617,7 +1618,7 @@ tbody tr:last-child td {
   justify-content: space-between;
   gap: 12px;
   padding: 3px 0;
-  font-size: 9px;
+  font-size: max(12px, calc(9px * var(--text-scale)));
   color: #84969e;
 }
 .xiva-rule li strong {
@@ -1646,7 +1647,7 @@ tbody tr:last-child td {
   gap: 10px;
 }
 .xiva-suggestion strong {
-  font-size: 10px;
+  font-size: max(12px, calc(10px * var(--text-scale)));
   line-height: 1.5;
   color: #536a73;
 }
@@ -1654,14 +1655,14 @@ tbody tr:last-child td {
 .xiva-suggestion small {
   display: block;
   color: #8c9da4;
-  font-size: 9px;
+  font-size: max(12px, calc(9px * var(--text-scale)));
   line-height: 1.55;
   margin-top: 6px;
 }
 .xiva-provenance {
   margin-top: 16px;
   color: #a0aaae;
-  font-size: 8px;
+  font-size: max(12px, calc(8px * var(--text-scale)));
   line-height: 1.5;
 }
 
@@ -1681,7 +1682,7 @@ tbody tr:last-child td {
 .pull-review-summary span,
 .pull-player-metrics span {
   display: block;
-  font-size: 8px;
+  font-size: max(12px, calc(8px * var(--text-scale)));
   color: #8c9ca3;
   text-transform: uppercase;
   letter-spacing: 0.35px;
@@ -1690,7 +1691,7 @@ tbody tr:last-child td {
   display: block;
   margin-top: 5px;
   color: #3d5a61;
-  font-size: 16px;
+  font-size: max(12px, calc(16px * var(--text-scale)));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1699,7 +1700,7 @@ tbody tr:last-child td {
   display: block;
   margin-top: 3px;
   color: #9aa8ad;
-  font-size: 8px;
+  font-size: max(12px, calc(8px * var(--text-scale)));
 }
 .pull-section-heading {
   display: flex;
@@ -1734,7 +1735,7 @@ tbody tr:last-child td {
   background: #f5f8f8;
   border-bottom: 1px solid #e8edef;
   color: #91a0a6;
-  font-size: 8px;
+  font-size: max(12px, calc(8px * var(--text-scale)));
   text-transform: uppercase;
   letter-spacing: 0.35px;
 }
@@ -1764,7 +1765,7 @@ tbody tr:last-child td {
 .pull-player-review-row > span > strong,
 .pull-player-name strong {
   display: block;
-  font-size: 10px;
+  font-size: max(12px, calc(10px * var(--text-scale)));
   color: #536b74;
 }
 .pull-player-review-row small,
@@ -1772,7 +1773,7 @@ tbody tr:last-child td {
   display: block;
   margin-top: 2px;
   color: #98a6ac;
-  font-size: 8px;
+  font-size: max(12px, calc(8px * var(--text-scale)));
 }
 .pull-player-name {
   display: flex;
@@ -1785,7 +1786,7 @@ tbody tr:last-child td {
   align-items: center;
   gap: 4px;
   color: #609987;
-  font-size: 9px;
+  font-size: max(12px, calc(9px * var(--text-scale)));
 }
 .pull-player-back {
   display: inline-flex;
@@ -1809,7 +1810,7 @@ tbody tr:last-child td {
   display: block;
   margin-top: 4px;
   color: #3d5a61;
-  font-size: 15px;
+  font-size: max(12px, calc(15px * var(--text-scale)));
   font-variant-numeric: tabular-nums;
 }
 
@@ -1825,7 +1826,7 @@ tbody tr:last-child td {
   color: #557b6e;
 }
 .coverage-block p {
-  font-size: 12px;
+  font-size: max(12px, calc(12px * var(--text-scale)));
   line-height: 1.85;
   color: #84979f;
   margin-top: 11px;
@@ -1894,7 +1895,7 @@ tbody tr:last-child td {
     padding: 15px;
   }
   .stat-detail {
-    font-size: 8px;
+    font-size: max(12px, calc(8px * var(--text-scale)));
   }
   .stat-value {
     font-size: 29px;
@@ -1906,7 +1907,7 @@ tbody tr:last-child td {
     padding: 20px 18px 14px;
   }
   .card-heading h2 {
-    font-size: 14px;
+    font-size: max(12px, calc(14px * var(--text-scale)));
   }
   .causes,
   .player-ranking {
@@ -1919,7 +1920,7 @@ tbody tr:last-child td {
     margin-left: 62px;
   }
   .filter-count {
-    font-size: 9px;
+    font-size: max(12px, calc(9px * var(--text-scale)));
     gap: 5px;
   }
   .demo-tag {
@@ -1963,11 +1964,11 @@ tbody tr:last-child td {
     font-size: 25px;
   }
   .sidebar-caption {
-    font-size: 7px;
+    font-size: max(12px, calc(7px * var(--text-scale)));
     letter-spacing: 0.6px;
   }
   .nav-item {
-    font-size: 11px;
+    font-size: max(12px, calc(11px * var(--text-scale)));
     padding-inline: 10px;
     gap: 9px;
   }
@@ -1978,7 +1979,7 @@ tbody tr:last-child td {
     grid-template-columns: repeat(2, 1fr);
   }
   .stat-detail {
-    font-size: 9px;
+    font-size: max(12px, calc(9px * var(--text-scale)));
   }
   .stat-card {
     min-height: 116px;
@@ -2001,21 +2002,21 @@ tbody tr:last-child td {
     gap: 7px;
   }
   .report-loader > .text-button {
-    font-size: 10px;
+    font-size: max(12px, calc(10px * var(--text-scale)));
   }
   .report-loader form .button {
-    font-size: 10px;
+    font-size: max(12px, calc(10px * var(--text-scale)));
     padding-inline: 10px;
   }
   .report-loader input {
-    font-size: 10px;
+    font-size: max(12px, calc(10px * var(--text-scale)));
     width: 100px;
   }
   .report-meta {
     display: none;
   }
   .chart-footnote > span {
-    font-size: 8px;
+    font-size: max(12px, calc(8px * var(--text-scale)));
   }
   .chart-footnote {
     padding-inline: 18px;
@@ -2066,7 +2067,7 @@ tbody tr:last-child td {
     display: flex;
     flex-direction: column;
     gap: 7px;
-    font-size: 9px;
+    font-size: max(12px, calc(9px * var(--text-scale)));
     padding: 9px 3px;
     margin-bottom: 0;
     text-align: center;
@@ -2093,7 +2094,7 @@ tbody tr:last-child td {
     flex-shrink: 0;
     min-width: 97px;
     padding: 8px 7px;
-    font-size: 10px;
+    font-size: max(12px, calc(10px * var(--text-scale)));
     gap: 7px;
   }
   .pull-option .remaining {
@@ -2130,15 +2131,15 @@ tbody tr:last-child td {
     padding: 3px 0;
   }
   .report-loader input {
-    font-size: 10px;
+    font-size: max(12px, calc(10px * var(--text-scale)));
     padding-inline: 8px;
   }
   .report-loader .button {
     padding: 9px;
-    font-size: 10px;
+    font-size: max(12px, calc(10px * var(--text-scale)));
   }
   .demo-banner {
-    font-size: 9px;
+    font-size: max(12px, calc(9px * var(--text-scale)));
   }
   .page-heading {
     margin: 24px 0 20px;
@@ -2147,7 +2148,7 @@ tbody tr:last-child td {
     font-size: 27px;
   }
   .page-heading p {
-    font-size: 11px;
+    font-size: max(12px, calc(11px * var(--text-scale)));
   }
   .filter-bar {
     padding: 11px;
@@ -2158,12 +2159,12 @@ tbody tr:last-child td {
     max-width: 220px;
   }
   .filter-bar label {
-    font-size: 9px;
+    font-size: max(12px, calc(9px * var(--text-scale)));
   }
   .filter-count {
     order: 3;
     flex-basis: 100%;
-    font-size: 9px;
+    font-size: max(12px, calc(9px * var(--text-scale)));
   }
   .refresh {
     margin-left: auto;
@@ -2182,10 +2183,10 @@ tbody tr:last-child td {
     margin-block: 9px 6px;
   }
   .stat-label {
-    font-size: 10px;
+    font-size: max(12px, calc(10px * var(--text-scale)));
   }
   .stat-detail {
-    font-size: 8px;
+    font-size: max(12px, calc(8px * var(--text-scale)));
   }
   .stat-label svg {
     width: 14px;
@@ -2194,10 +2195,10 @@ tbody tr:last-child td {
     padding: 19px 16px 14px;
   }
   .card-heading h2 {
-    font-size: 14px;
+    font-size: max(12px, calc(14px * var(--text-scale)));
   }
   .chart-legend {
-    font-size: 8px;
+    font-size: max(12px, calc(8px * var(--text-scale)));
     max-width: 80px;
     text-align: right;
   }
@@ -2209,19 +2210,19 @@ tbody tr:last-child td {
     min-width: 24px;
   }
   .chart-duration {
-    font-size: 7px;
+    font-size: max(12px, calc(7px * var(--text-scale)));
   }
   .bar-fill {
     width: 85%;
   }
   .chart-footnote {
-    font-size: 8px;
+    font-size: max(12px, calc(8px * var(--text-scale)));
     padding-inline: 16px;
   }
   .chart-footnote > span {
     max-width: 170px;
     text-align: right;
-    font-size: 8px;
+    font-size: max(12px, calc(8px * var(--text-scale)));
   }
   .next-step {
     padding: 17px 15px;
@@ -2232,16 +2233,16 @@ tbody tr:last-child td {
     height: 35px;
   }
   .next-step h3 {
-    font-size: 11px;
+    font-size: max(12px, calc(11px * var(--text-scale)));
   }
   .next-step p {
-    font-size: 9px;
+    font-size: max(12px, calc(9px * var(--text-scale)));
   }
   .next-step > .button {
     margin-left: 47px;
   }
   .page-footer {
-    font-size: 8px;
+    font-size: max(12px, calc(8px * var(--text-scale)));
   }
   .detail-drawer {
     padding: 40px 19px;
@@ -2254,16 +2255,16 @@ tbody tr:last-child td {
     padding: 12px;
   }
   .death-name {
-    font-size: 11px;
+    font-size: max(12px, calc(11px * var(--text-scale)));
   }
   .death-name > .first-tag {
-    font-size: 7px;
+    font-size: max(12px, calc(7px * var(--text-scale)));
   }
   .card-heading > select {
     max-width: 135px;
   }
   .card-heading p {
-    font-size: 10px;
+    font-size: max(12px, calc(10px * var(--text-scale)));
   }
   .matrix th,
   .matrix td {
@@ -2276,10 +2277,10 @@ tbody tr:last-child td {
     gap: 7px;
   }
   .matrix .player-cell strong {
-    font-size: 10px;
+    font-size: max(12px, calc(10px * var(--text-scale)));
   }
   .notice {
-    font-size: 11px;
+    font-size: max(12px, calc(11px * var(--text-scale)));
     padding: 12px;
   }
   .notice .button {
@@ -2313,7 +2314,7 @@ tbody tr:last-child td {
   border-radius: 6px;
   background: #f8fafb;
   color: #5f7078;
-  font-size: 10px;
+  font-size: max(12px, calc(10px * var(--text-scale)));
   font-weight: 600;
 }
 .theme-toggle:hover {
@@ -2604,4 +2605,33 @@ tbody tr:last-child td {
 :root[data-theme='dark'] .xiva-rule-status.pass {
   background: #193128;
   color: #79c19e;
+}
+
+:root[data-text-size='large'] {
+  --text-scale: 1.45;
+}
+:root[data-text-size='extra-large'] {
+  --text-scale: 1.65;
+}
+.text-size-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #5f7078;
+  white-space: nowrap;
+}
+.text-size-control select {
+  max-width: none;
+  padding: 6px 24px 6px 8px;
+}
+:root[data-theme='dark'] .text-size-control {
+  color: #aebbc2;
+}
+@media (max-width: 650px) {
+  .text-size-control span {
+    display: none;
+  }
+  .text-size-control select {
+    max-width: 115px;
+  }
 }
