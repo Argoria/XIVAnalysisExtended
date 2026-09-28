@@ -1,0 +1,7 @@
+vendor/
+node_modules/
+dist/
+.artifacts/
+package-lock.json
+.env*
+.idea/
