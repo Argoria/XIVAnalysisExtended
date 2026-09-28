@@ -53,7 +53,9 @@ export function App() {
   const [revision, setRevision] = useState(0)
   const [focusedPull, setFocusedPull] = useState<number | null>(null)
   const [focusedPlayer, setFocusedPlayer] = useState<number | null>(null)
-  const [playerPullSort, setPlayerPullSort] = useState<'boss' | 'dps' | 'fewest-deaths' | 'most-deaths'>('boss')
+  const [playerPullSort, setPlayerPullSort] = useState<
+    'boss' | 'dps' | 'fewest-deaths' | 'most-deaths'
+  >('boss')
   const [helpOpen, setHelpOpen] = useState(false)
   const loadController = useRef<AbortController | null>(null)
   const analysisController = useRef<AbortController | null>(null)
@@ -749,7 +751,9 @@ export function App() {
                               </span>
                               <span>
                                 {performance
-                                  ? `${Math.round(performance.dps).toLocaleString()} DPS · ${performance.deaths} ${performance.deaths === 1 ? 'death' : 'deaths'} · ${percent(performance.bossRemaining)} boss HP`
+                                  ? `${Math.round(performance.dps).toLocaleString()} DPS · ${performance.deaths} ${
+                                      performance.deaths === 1 ? 'death' : 'deaths'
+                                    } · ${percent(performance.bossRemaining)} boss HP`
                                   : 'Not analyzed'}{' '}
                                 <ChevronRight size={15} />
                               </span>
