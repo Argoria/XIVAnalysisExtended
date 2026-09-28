@@ -60,14 +60,20 @@ const resolveFromVendor = (id) => require.resolve(id, { paths: [XIVA] })
 const presetEnvPackage = require.resolve('@babel/preset-env/package.json', { paths: [XIVA] })
 const resolveFromPresetEnv = (id) =>
   require.resolve(id, { paths: [path.dirname(presetEnvPackage)] })
+const loadModule = (modulePath) => {
+  const loaded = require(modulePath)
+  return loaded.default || loaded
+}
 
-const dependencyPlugin = require(path.join(XIVA, 'config', 'babel-plugin-xiva-dependency.js'))
-const typescriptPlugin = require(resolveFromVendor('@babel/plugin-transform-typescript'))
-const decoratorsPlugin = require(resolveFromVendor('@babel/plugin-proposal-decorators'))
-const classPropertiesPlugin = require(resolveFromPresetEnv('@babel/plugin-transform-class-properties'))
-const macrosPlugin = require(resolveFromVendor('babel-plugin-macros'))
-const lodashPlugin = require(resolveFromVendor('babel-plugin-lodash'))
-const transformRuntimePlugin = require(resolveFromVendor('@babel/plugin-transform-runtime'))
+const dependencyPlugin = loadModule(path.join(XIVA, 'config', 'babel-plugin-xiva-dependency.js'))
+const typescriptPlugin = loadModule(resolveFromVendor('@babel/plugin-transform-typescript'))
+const decoratorsPlugin = loadModule(resolveFromVendor('@babel/plugin-proposal-decorators'))
+const classPropertiesPlugin = loadModule(
+  resolveFromPresetEnv('@babel/plugin-transform-class-properties'),
+)
+const macrosPlugin = loadModule(resolveFromVendor('babel-plugin-macros'))
+const lodashPlugin = loadModule(resolveFromVendor('babel-plugin-lodash'))
+const transformRuntimePlugin = loadModule(resolveFromVendor('@babel/plugin-transform-runtime'))
 
 const getPlugins = ({ isTypescript = false, isTSX = false } = {}) =>
   [
@@ -96,7 +102,7 @@ require(resolveFromVendor('@babel/register'))({
   cache: false,
   presets: [
     [
-      require(resolveFromVendor('@babel/preset-env')),
+      loadModule(resolveFromVendor('@babel/preset-env')),
       {
         bugfixes: true,
         targets: { node: true },
@@ -104,7 +110,7 @@ require(resolveFromVendor('@babel/register'))({
       },
     ],
     [
-      require(resolveFromVendor('@babel/preset-react')),
+      loadModule(resolveFromVendor('@babel/preset-react')),
       {
         development: false,
         runtime: 'automatic',
