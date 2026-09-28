@@ -1,8 +1,8 @@
 import type { XivanalysisPlayerAnalysis } from './types'
 
 export interface XivanalysisAggregate {
-  pullsAnalyzed: number
-  gcdPullsMeasured: number
+  playerPullsAnalyzed: number
+  gcdPlayerPullsMeasured: number
   gcdUptimeMs: number
   eligibleGcdMs: number
   gcdUptimePercent: number | null
@@ -21,7 +21,7 @@ export interface XivanalysisAggregate {
 export function summarizeXivanalysis(results: XivanalysisPlayerAnalysis[]): XivanalysisAggregate {
   let gcdUptimeMs = 0
   let eligibleGcdMs = 0
-  let gcdPullsMeasured = 0
+  let gcdPlayerPullsMeasured = 0
   let gcdDowntimeMs = 0
   let gcdDowntimeCount = 0
   let gcdDowntimeMeasured = 0
@@ -41,7 +41,7 @@ export function summarizeXivanalysis(results: XivanalysisPlayerAnalysis[]): Xiva
     if (uptime.gcdUptimeMs != null && uptime.effectiveFightMs != null && uptime.effectiveFightMs > 0) {
       gcdUptimeMs += uptime.gcdUptimeMs
       eligibleGcdMs += uptime.effectiveFightMs
-      gcdPullsMeasured++
+      gcdPlayerPullsMeasured++
     }
     if (uptime.gcdDowntimeMs != null && uptime.gcdDowntimeCount != null) {
       gcdDowntimeMs += uptime.gcdDowntimeMs
@@ -70,8 +70,8 @@ export function summarizeXivanalysis(results: XivanalysisPlayerAnalysis[]): Xiva
   }
 
   return {
-    pullsAnalyzed: results.length,
-    gcdPullsMeasured,
+    playerPullsAnalyzed: results.length,
+    gcdPlayerPullsMeasured,
     gcdUptimeMs,
     eligibleGcdMs,
     gcdUptimePercent: eligibleGcdMs > 0 ? (gcdUptimeMs / eligibleGcdMs) * 100 : null,
