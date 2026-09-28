@@ -670,8 +670,8 @@ export function App() {
                       <span className="eyebrow">DEEPER JOB ANALYSIS</span>
                       <h3>Deaths tell you where to look. Job metrics explain more.</h3>
                       <p>
-                        Opener checks, DoT uptime, and mitigation opportunities are the next integration
-                        stage.
+                        Player × pull GCD uptime, lost-time issues, checklist results, and xivanalysis
+                        suggestions are now available on demand.
                       </p>
                     </div>
                     <button className="button" onClick={() => setHelpOpen(true)}>
@@ -799,10 +799,7 @@ export function App() {
                           return (
                             <button
                               key={p.id}
-                              onClick={() => {
-                                setFocusedPlayer(focusedPlayer)
-                                setFocusedPull(p.id)
-                              }}
+                              onClick={() => setFocusedPull(p.id)}
                             >
                               <span>
                                 Pull {p.id} · {p.name}
@@ -950,9 +947,9 @@ export function App() {
                     </table>
                   </div>
                   <div className="card-footer">
-                    FFLogs DPS, rDPS, nDPS, and cDPS are retained per player and pull. Opener, mitigation, DoT
-                    uptime, mechanics, and composite performance scores remain unavailable until xivanalysis
-                    is connected.
+                    FFLogs DPS-family metrics are retained per player and pull. Select a matrix cell to run
+                    xivanalysis for that player and inspect GCD uptime, lost-time issues, checklist rules, and
+                    suggestions.
                   </div>
                 </section>
               )}
@@ -1007,6 +1004,7 @@ export function App() {
                   xivanalysis={xivanalysis ?? undefined}
                   xivanalysisLoading={xivanalysisLoading}
                   xivanalysisError={xivanalysisError || undefined}
+                  onSelectPlayer={setFocusedPlayer}
                 />
               )
             )}
