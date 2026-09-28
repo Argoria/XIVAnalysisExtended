@@ -24,7 +24,7 @@ import {
 import { summarize } from '../shared/analysis'
 import { demoAnalyses, demoReport } from '../shared/demo'
 import { parseReportInput } from '../shared/report-input'
-import type { Pull, PullAnalysis, Report } from '../shared/types'
+import type { Pull, PullAnalysis, Report, XivanalysisPlayerAnalysis } from '../shared/types'
 import { api } from './api'
 import { duration, percent } from './format'
 
@@ -57,8 +57,12 @@ export function App() {
     'boss',
   )
   const [helpOpen, setHelpOpen] = useState(false)
+  const [xivanalysis, setXivanalysis] = useState<XivanalysisPlayerAnalysis | null>(null)
+  const [xivanalysisError, setXivanalysisError] = useState('')
+  const [xivanalysisLoading, setXivanalysisLoading] = useState(false)
   const loadController = useRef<AbortController | null>(null)
   const analysisController = useRef<AbortController | null>(null)
+  const xivanalysisController = useRef<AbortController | null>(null)
   const detailRef = useRef<HTMLElement>(null)
   useEffect(() => {
     api
@@ -100,6 +104,34 @@ export function App() {
     // Cache updates must not restart in-flight workers. Selection and revision own the lifecycle.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [report, selectionKey, revision])
+
+  useEffect(() => {
+    xivanalysisController.current?.abort()
+    setXivanalysis(null)
+    setXivanalysisError('')
+    setXivanalysisLoading(false)
+
+    if (report.source === 'demo' || focusedPull == null || focusedPlayer == null) return
+    const pull = report.pulls.find((candidate) => candidate.id === focusedPull)
+    if (!pull?.playerIds.includes(focusedPlayer)) return
+
+    const controller = new AbortController()
+    xivanalysisController.current = controller
+    setXivanalysisLoading(true)
+    api
+      .xivanalysis(report.code, focusedPull, focusedPlayer, false, controller.signal)
+      .then((result) => {
+        if (!controller.signal.aborted) setXivanalysis(result)
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted)
+          setXivanalysisError(error instanceof Error ? error.message : 'xivanalysis failed.')
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setXivanalysisLoading(false)
+      })
+    return () => controller.abort()
+  }, [report, focusedPull, focusedPlayer])
 
   useEffect(() => {
     if (focusedPull != null || helpOpen) {
@@ -504,7 +536,10 @@ export function App() {
                         <button
                           key={p.id}
                           className={`chart-column ${p.kill ? 'cleared' : ''}`}
-                          onClick={() => setFocusedPull(p.id)}
+                          onClick={() => {
+                            setFocusedPlayer(null)
+                            setFocusedPull(p.id)
+                          }}
                           aria-label={`Inspect pull ${p.id}, ${percent(p.fightRemaining)} fight remaining`}
                         >
                           <span className="chart-value">
@@ -762,7 +797,13 @@ export function App() {
                         .map((p) => {
                           const performance = performanceFor(p.id, focusedPlayer)
                           return (
-                            <button key={p.id} onClick={() => setFocusedPull(p.id)}>
+                            <button
+                              key={p.id}
+                              onClick={() => {
+                                setFocusedPlayer(focusedPlayer)
+                                setFocusedPull(p.id)
+                              }}
+                            >
                               <span>
                                 Pull {p.id} · {p.name}
                               </span>
@@ -832,7 +873,13 @@ export function App() {
                                     : '—'}
                               </td>
                               <td>
-                                <button className="text-button" onClick={() => setFocusedPull(p.id)}>
+                                <button
+                                  className="text-button"
+                                  onClick={() => {
+                                    setFocusedPlayer(null)
+                                    setFocusedPull(p.id)
+                                  }}
+                                >
                                   Inspect <ArrowRight size={14} />
                                 </button>
                               </td>
@@ -884,7 +931,10 @@ export function App() {
                                       <button
                                         aria-label={`${player.name}, pull ${p.id}, ${count == null ? 'not analyzed' : `${count} deaths`}`}
                                         className={`matrix-cell ${count == null ? 'unloaded' : count ? 'bad' : 'good'}`}
-                                        onClick={() => setFocusedPull(p.id)}
+                                        onClick={() => {
+                                          setFocusedPlayer(player.id)
+                                          setFocusedPull(p.id)
+                                        }}
                                       >
                                         {count ?? '…'}
                                       </button>
@@ -953,6 +1003,10 @@ export function App() {
                   pull={inspected}
                   analysis={analyses[inspected.id]}
                   error={failures[inspected.id]}
+                  playerId={focusedPlayer}
+                  xivanalysis={xivanalysis ?? undefined}
+                  xivanalysisLoading={xivanalysisLoading}
+                  xivanalysisError={xivanalysisError || undefined}
                 />
               )
             )}
