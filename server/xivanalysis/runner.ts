@@ -1,37 +1,12 @@
 import { existsSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { resolve } from 'node:path'
+import type { XivanalysisPlayerAnalysis } from '../../shared/types'
 import type { XivanalysisCompatInput } from './v2-adapter'
 
 export const XIVA_ENGINE_REVISION = 'f532855e635bdfb4211cec8128d582dadfdc6a75'
 
-export interface XivanalysisSuggestionSummary {
-  severity: number
-  severityName: string
-  value: number | null
-  kind: string
-}
-
-export interface XivanalysisModuleSummary {
-  handle: string
-  type: string
-  error: string | null
-}
-
-export interface XivanalysisEngineResult {
-  engineRevision: string
-  adapterVersion: string
-  reportCode: string
-  fightId: number
-  actorId: string
-  job: string
-  encounterKey: string | null
-  adaptedEventCount: number
-  eventTypes: Record<string, number>
-  moduleCount: number
-  modules: XivanalysisModuleSummary[]
-  suggestions: XivanalysisSuggestionSummary[]
-}
+export type XivanalysisEngineResult = XivanalysisPlayerAnalysis
 
 export interface XivanalysisEngineRunner {
   analyze(
