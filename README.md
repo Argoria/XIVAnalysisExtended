@@ -32,6 +32,7 @@ npm start           # Serves the built UI and API at http://127.0.0.1:3001
 - Encounter and pull selection. A session is currently one report, limited to selected boss fights. Area downtime and encounter ID 0 segments are excluded.
 - Rosters intersect each fight's `friendlyPlayers` with actual `Player` actors. Pets, NPCs, unrelated report actors, and Limit Break entities never become players in the analysis.
 - Death counts, first deaths (including timestamp ties), deaths per participating pull, and death-free pulls. Substitutes use their own participation denominator.
+- Player × pull raw damage and pull-duration DPS from `DamageDone`, with pet damage rolled into the participating owner through FFLogs `petOwner`. The player view shows weighted average DPS, best pull DPS, and sortable pull history by boss HP, DPS, or deaths.
 - Killing-ability frequency with an explicit unknown bucket, per-pull death timelines, and up to ten incoming damage events from the five seconds before each death.
 - Separate boss HP and encounter progression. API v2 percentages are already 0–100; they are not divided by 100 as in the legacy v1 adapter.
 - Both Limit Break actor IDs are treated as the shared raid resource. Duplicate same-time, same-ability casts are grouped while preserving actor IDs. Player-attributed LB actions are not yet detected.
@@ -47,7 +48,7 @@ The upstream repository is added as the pinned Git submodule `vendor/xivanalysis
 git submodule update --init --recursive
 ```
 
-The submodule is **not yet an executing analysis engine** in this app. Its current implementation is a React 16/Webpack application with a legacy FFLogs v1 adapter, browser dependencies, module-specific result state, and React output. Opener checks, DoT uptime, mitigation opportunities, boss-specific recommendations, and scores are deliberately shown as **not analyzed** in the MVP.
+The submodule is **not yet an executing analysis engine** in this app. Its current implementation is a React 16/Webpack application with a legacy FFLogs v1 adapter, browser dependencies, module-specific result state, and React output. Opener checks, DoT uptime, mitigation opportunities, boss-specific recommendations, and composite performance scores are deliberately shown as **not analyzed** in the MVP. Raw pull-duration DPS is an FFLogs fact, not an xivanalysis score or an FFLogs rDPS/aDPS/nDPS ranking metric.
 
 See [the product and integration design](docs/design.md) for the implementation path, metric contract, scoring constraints, and acceptance criteria. No upstream dependencies or code are copied into the production bundle. The original MIT license remains in the submodule.
 
