@@ -53,6 +53,7 @@ export function App() {
   const [encounter, setEncounter] = useState(encounterKey(demoReport.pulls[0]))
   const [selected, setSelected] = useState<number[]>(demoReport.pulls.slice(0, 8).map((p) => p.id))
   const [progression, setProgression] = useState<PullProgression>({})
+  const [progressionFailures, setProgressionFailures] = useState<number[]>([])
   const [progressionStatus, setProgressionStatus] = useState<'loading' | 'ready' | 'unavailable'>('ready')
   const [view, setView] = useState<View>('session')
   const [input, setInput] = useState('')
@@ -107,15 +108,18 @@ export function App() {
   useEffect(() => {
     if (report.source === 'demo') {
       setProgression({})
+      setProgressionFailures([])
       setProgressionStatus('ready')
       return
     }
     const controller = new AbortController()
     setProgression({})
+    setProgressionFailures([])
     setProgressionStatus('loading')
     api.progression(report.code, controller.signal)
-      .then((markers) => {
-        setProgression(markers)
+      .then((result) => {
+        setProgression(result.pulls)
+        setProgressionFailures(result.failedPulls)
         setProgressionStatus('ready')
       })
       .catch(() => {
@@ -136,26 +140,33 @@ export function App() {
     const references = new Map(encounters.map((key) => [
       key,
       [...available].filter((pull) => encounterKey(pull) === key)
-        .sort((a, b) => (progression[b.id]?.length ?? 0) - (progression[a.id]?.length ?? 0))[0],
+        .sort((a, b) => Number(b.kill) - Number(a.kill)
+          || (a.fightRemaining ?? 100) - (b.fightRemaining ?? 100)
+          || (b.endTime - b.startTime) - (a.endTime - a.startTime))[0],
     ] as const))
     const groups = new Map<string, { key: string; label: string; pulls: Pull[]; rank: number }>()
     for (const pull of available) {
       const encounterId = encounterKey(pull)
       const reference = references.get(encounterId)
       const last = progression[pull.id]?.at(-1)
-      const markerId = last ? `${last.abilityId}:${last.occurrence}` : 'opening'
-      const key = `${encounterId}:${pull.kill ? 'clear' : markerId}`
-      const label = `${encounter === 'all' ? `${pull.name} · ` : ''}${pull.kill ? 'Clear' : last ? `${last.name} #${last.occurrence}` : 'Opening / no cast recorded'}`
-      const markerRank = last && reference ? progression[reference.id]?.findIndex(
-        (candidate) => `${candidate.abilityId}:${candidate.occurrence}` === markerId,
-      ) ?? -1 : -1
-      const rank = encounters.indexOf(encounterId) * 100000 + (pull.kill ? 99999 : last ? (markerRank < 0 ? 99998 : markerRank) : -1)
+      const markerId = last ? `${last.name.toLocaleLowerCase()}:${last.occurrence}` : 'opening'
+      const failed = progressionFailures.includes(pull.id)
+      const key = `${encounterId}:${failed ? 'failed' : pull.kill ? 'clear' : markerId}`
+      const label = `${encounter === 'all' ? `${pull.name} · ` : ''}${failed ? 'Cast data unavailable' : pull.kill ? 'Clear' : last ? `${last.name} #${last.occurrence}` : 'Opening / no boss cast recorded'}`
+      const referenceMarker = last && reference ? progression[reference.id]?.find(
+        (candidate) => candidate.name.toLocaleLowerCase() === last.name.toLocaleLowerCase()
+          && candidate.occurrence === last.occurrence,
+      ) : undefined
+      const elapsed = referenceMarker && reference
+        ? referenceMarker.timestamp - reference.startTime
+        : last ? last.timestamp - pull.startTime : -1
+      const rank = encounters.indexOf(encounterId) * 1000000 + (failed ? 999999 : pull.kill ? 999998 : elapsed / 1000)
       const group = groups.get(key) ?? { key, label, pulls: [] as Pull[], rank }
       group.pulls.push(pull)
       groups.set(key, group)
     }
     return [...groups.values()].sort((a, b) => a.rank - b.rank)
-  }, [available, encounter, progression, progressionStatus, report.source])
+  }, [available, encounter, progression, progressionFailures, progressionStatus, report.source])
   const selectionKey = selected.join(',')
 
   useEffect(() => {
@@ -556,6 +567,7 @@ export function App() {
         <div className="pull-list">
           {progressionStatus === 'loading' && <p className="progression-note">Reading enemy casts…</p>}
           {progressionStatus === 'unavailable' && <p className="progression-note">Cast grouping unavailable.</p>}
+          {progressionFailures.length > 0 && <p className="progression-note">Cast data missing for {progressionFailures.length} pull(s).</p>}
           {pullGroups.map((group) => (
             <div className="pull-group" key={group.key}>
               {group.key !== 'all' && <div className="pull-group-title" title={`Last observed enemy cast: ${group.label}`}>{group.label}</div>}

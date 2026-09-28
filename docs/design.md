@@ -36,9 +36,10 @@ First deaths include ties at the exact timestamp. They are not labeled wipe caus
 
 ### Provisional encounter progression
 
-The sidebar loads enemy cast events for each pull independently of deep xivanalysis. It numbers repeated casts
-within a pull (`Sadistic Screech #1`, `#2`, etc.) and groups pulls by their last observed cast. Clears have their
-own group. This is an observed event marker, not a verified phase or a claim about mechanic success. Encounter
+The sidebar loads enemy cast events for each pull independently of deep xivanalysis and keeps casts from the
+named boss actor. It numbers repeated cast names within a pull (`Sadistic Screech #1`, `#2`, etc.) and groups
+pulls by their last observed boss cast. Clears have their own group. A failed cast download is shown as unavailable
+for that pull while other groups remain available. This is an observed event marker, not a verified phase or a claim about mechanic success. Encounter
 rules will later map selected cast IDs and occurrences to meaningful progression checkpoints, handle simultaneous
 adds and cast cancellations, and record the boss HP at each checkpoint. Missing or failed cast extraction does
 not alter FFLogs' fight and boss remaining percentages.

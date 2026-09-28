@@ -1,4 +1,4 @@
-import type { PullAnalysis, PullProgression } from '../shared/types'
+import type { PullAnalysis, ProgressionResult } from '../shared/types'
 import { FflogsClient, FflogsError } from './fflogs/client'
 import { analyzePull, normalizeReport } from './fflogs/normalize'
 import { progressionMarkers } from './fflogs/progression'
@@ -36,7 +36,7 @@ class Cache<T> {
 export class ReportService {
   private reports = new Cache<RawReport>(10)
   private analyses = new Cache<PullAnalysis>(300)
-  private progressions = new Cache<PullProgression>(10)
+  private progressions = new Cache<ProgressionResult>(10)
   private xivanalysisInputs = new Cache<XivanalysisCompatInput>(50)
   private xivanalysisResults = new Cache<XivanalysisEngineResult>(300)
   constructor(
@@ -75,23 +75,28 @@ export class ReportService {
     return result
   }
 
-  async progression(code: string, signal?: AbortSignal): Promise<PullProgression> {
+  async progression(code: string, signal?: AbortSignal): Promise<ProgressionResult> {
     const { raw, report } = await this.report(code, false, signal)
     const key = `${code}:${raw.endTime}:progression`
     const cached = this.progressions.get(key)
     if (cached) return cached
-    const result: PullProgression = {}
+    const result: ProgressionResult = { pulls: {}, failedPulls: [] }
     let index = 0
     async function worker(service: ReportService) {
       while (index < report.pulls.length) {
         signal?.throwIfAborted()
         const pull = report.pulls[index++]
-        const events = await service.client.events(code, pull, 'Casts', undefined, signal, 'Enemies')
-        result[pull.id] = progressionMarkers(raw, pull, events)
+        try {
+          const events = await service.client.events(code, pull, 'Casts', undefined, signal, 'Enemies')
+          result.pulls[pull.id] = progressionMarkers(raw, pull, events)
+        } catch (error) {
+          if (signal?.aborted) throw error
+          result.failedPulls.push(pull.id)
+        }
       }
     }
     await Promise.all([worker(this), worker(this)])
-    this.progressions.set(key, result)
+    if (!result.failedPulls.length) this.progressions.set(key, result)
     return result
   }
 

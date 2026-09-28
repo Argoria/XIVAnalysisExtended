@@ -101,6 +101,10 @@ export interface ProgressionMarker {
 }
 
 export type PullProgression = Record<number, ProgressionMarker[]>
+export interface ProgressionResult {
+  pulls: PullProgression
+  failedPulls: number[]
+}
 
 export interface PlayerSummary extends Player {
   pulls: number

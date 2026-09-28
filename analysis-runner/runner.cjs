@@ -109,6 +109,13 @@ const { AVAILABLE_MODULES } = require(path.join(XIVA, 'src', 'parser', 'AVAILABL
 const { Parser } = require(path.join(XIVA, 'src', 'parser', 'core', 'Parser.tsx'))
 const { Meta } = require(path.join(XIVA, 'src', 'parser', 'core', 'Meta.tsx'))
 
+// The upstream browser parser gathers dependency context and submits event errors to
+// Sentry. Its context traversal assumes every dependency exists in the container
+// and can itself throw, hiding the original module error as a `.handle` failure.
+// This isolated runner has no Sentry sink; the parser still records each original
+// error in _moduleErrors, which we include with the returned module results.
+Parser.prototype.captureError = function captureRunnerError() {}
+
 const JOB_MODULE_DIRS = {
   PALADIN: 'pld',
   WARRIOR: 'war',
@@ -139,6 +146,10 @@ function directMeta(sourceMeta, modulesPath) {
   const loaded = require(modulesPath)
   if (!Array.isArray(loaded.modules)) {
     throw new Error(`xivanalysis module bundle ${modulesPath} did not export a modules array.`)
+  }
+  const missing = loaded.modules.findIndex((constructor) => constructor == null)
+  if (missing !== -1) {
+    throw new Error(`xivanalysis module bundle ${modulesPath} has an undefined module at index ${missing}.`)
   }
   return new Meta({
     modules: () => Promise.resolve({ modules: loaded.modules }),
@@ -425,19 +436,7 @@ async function analyse(input, actorId) {
   if (actorMeta) meta = meta.merge(actorMeta)
 
   const parser = new Parser({ meta, report, pull, actor })
-  try {
-    await parser.configure()
-  } catch (error) {
-    const constructors = await meta.getModules()
-    const tincture = constructors.find((ctor) => ctor.handle === 'tincture')
-    const dependencyHandles = tincture?.dependencies?.map(
-      (dependency) => `${dependency.prop}:${dependency.handle}`,
-    )
-    const message = error instanceof Error ? error.message : String(error)
-    throw new Error(`${message} [tincture dependencies: ${JSON.stringify(dependencyHandles ?? [])}]`, {
-      cause: error,
-    })
-  }
+  await parser.configure()
   parser.parseEvents({ events: adaptedEvents })
 
   const moduleErrors = Object.fromEntries(
