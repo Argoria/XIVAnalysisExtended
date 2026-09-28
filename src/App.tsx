@@ -150,6 +150,12 @@ export function App() {
   }, [report, focusedPull, focusedPlayer, deepAnalyses])
 
   useEffect(() => {
+    deepBatchController.current?.abort()
+    setDeepBatchProgress(null)
+    setDeepBatchError('')
+  }, [focusedPlayer, selectionKey])
+
+  useEffect(() => {
     if (focusedPull != null || helpOpen) {
       const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
       detailRef.current?.focus()
