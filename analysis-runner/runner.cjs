@@ -33,8 +33,6 @@ global.localStorage = {
   setItem: () => {},
   removeItem: () => {},
 }
-global.window = global.window || { location: { reload: () => {} } }
-
 const originalLoad = Module._load
 Module._load = function patchedLoad(request, parent, isMain) {
   if (request === '@sentry/browser') {
@@ -133,6 +131,10 @@ const { adaptEvents } = require(
 )
 const { AVAILABLE_MODULES } = require(path.join(XIVA, 'src', 'parser', 'AVAILABLE_MODULES.ts'))
 const { Parser } = require(path.join(XIVA, 'src', 'parser', 'core', 'Parser.tsx'))
+
+// Keep browser detection in React/Scheduler on Node's server path during module loading.
+// Parser only uses window.location.reload on its production error-recovery path.
+global.window = { location: { reload: () => {} } }
 
 const JOB_KEYS = {
   Paladin: 'PALADIN',
