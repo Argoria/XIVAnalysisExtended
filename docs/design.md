@@ -44,6 +44,7 @@ Current adapter status:
 - `analysis-runner/runner.cjs` constructs upstream-compatible `Report`/`Pull`/`Actor` objects and executes the pinned xivanalysis `adaptEvents` and `Parser` in an isolated Node process. The application does not copy or reimplement job analyzers.
 - Structured extraction currently reads upstream `AlwaysBeCasting`, `Downtime`, `Weaving`, `Interrupts`, `Checklist`, and `Suggestions` module state before React rendering. This yields GCD uptime, lost-time issue counts/durations, checklist percentages, and suggestion metadata for a player × pull.
 - The player view can explicitly analyze the selected player's selected pulls with bounded client concurrency. Rollups aggregate GCD uptime from summed measured uptime and eligible milliseconds rather than averaging pull percentages. Missing delay metrics remain unavailable rather than becoming zero; checklist results remain `passed / evaluated` counts rather than a synthetic score.
+- Deep analysis is opt-in at the player/pull level; loading ordinary FFLogs summaries never spawns the xivanalysis runner.
 
 Observed upstream integration points:
 
