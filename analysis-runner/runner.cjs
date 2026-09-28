@@ -150,20 +150,14 @@ function directMeta(sourceMeta, modulesPath) {
 }
 
 function coreMeta() {
-  return directMeta(
-    AVAILABLE_MODULES.CORE,
-    path.join(XIVA, 'src', 'parser', 'core', 'modules'),
-  )
+  return directMeta(AVAILABLE_MODULES.CORE, path.join(XIVA, 'src', 'parser', 'core', 'modules'))
 }
 
 function jobMeta(job) {
   const sourceMeta = AVAILABLE_MODULES.JOBS[job]
   const directory = JOB_MODULE_DIRS[job]
   if (!sourceMeta || !directory) return null
-  return directMeta(
-    sourceMeta,
-    path.join(XIVA, 'src', 'parser', 'jobs', directory, 'modules'),
-  )
+  return directMeta(sourceMeta, path.join(XIVA, 'src', 'parser', 'jobs', directory, 'modules'))
 }
 
 function bossMeta(encounterKey) {
@@ -178,10 +172,7 @@ function bossMeta(encounterKey) {
   ]
   const match = candidates.find(([, meta]) => meta === sourceMeta)
   if (!match) return null
-  return directMeta(
-    sourceMeta,
-    path.join(XIVA, 'src', 'parser', 'bosses', match[0], 'modules'),
-  )
+  return directMeta(sourceMeta, path.join(XIVA, 'src', 'parser', 'bosses', match[0], 'modules'))
 }
 
 // Keep browser detection in React/Scheduler on Node's server path during module loading.
@@ -357,10 +348,9 @@ async function analyse(input, actorId) {
       (dependency) => `${dependency.prop}:${dependency.handle}`,
     )
     const message = error instanceof Error ? error.message : String(error)
-    throw new Error(
-      `${message} [tincture dependencies: ${JSON.stringify(dependencyHandles ?? [])}]`,
-      { cause: error },
-    )
+    throw new Error(`${message} [tincture dependencies: ${JSON.stringify(dependencyHandles ?? [])}]`, {
+      cause: error,
+    })
   }
   parser.parseEvents({ events: adaptedEvents })
 
