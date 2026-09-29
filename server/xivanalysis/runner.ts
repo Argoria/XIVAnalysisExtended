@@ -1,3 +1,4 @@
+import { sanitizeXivanalysisResult } from '../../shared/xivanalysis-integrity'
 import { existsSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { resolve } from 'node:path'
@@ -106,7 +107,7 @@ export class IsolatedXivanalysisRunner implements XivanalysisEngineRunner {
         }
         try {
           const parsed = JSON.parse(stdout) as XivanalysisEngineResult
-          finish(() => resolveResult(parsed))
+          finish(() => resolveResult(sanitizeXivanalysisResult(parsed)))
         } catch {
           finish(() => reject(new XivanalysisRunnerError('xivanalysis runner returned invalid JSON.', 502)))
         }

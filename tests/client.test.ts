@@ -119,7 +119,7 @@ describe('FFLogs client', () => {
     const query = JSON.parse(String(fetcher.mock.calls[1][1]?.body)).query as string
     expect(query).toContain('hostilityType: Enemies')
     expect(query).toContain('dataType: Casts')
-    expect(query).not.toContain('includeResources: true')
+    expect(query).toContain('includeResources: true')
   })
 
   it('fetches the complete xivanalysis event stream without a data-type filter', async () => {

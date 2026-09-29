@@ -393,33 +393,56 @@ function extractChecklist(parser) {
 }
 
 function extractUptime(parser) {
-  const abc = parser.container.abc
-  const downtime = parser.container.downtime
-  const weaving = issueSummary(parser.container.weaving)
-  const interrupts = issueSummary(parser.container.interrupts)
-  const unavailableMs =
-    downtime && typeof downtime.getDowntime === 'function' ? finiteNumber(downtime.getDowntime()) : null
-  const gcdCount = finiteNumber(abc?.gcdsCounted)
-  const hasGcdData = gcdCount != null && gcdCount > 0
-  const gcdUptimeMs = hasGcdData ? finiteNumber(abc?.gcdUptime) : null
-  const gcdUptimePercent =
-    hasGcdData && typeof abc?.getUptimePercent === 'function' ? finiteNumber(abc.getUptimePercent()) : null
-  const gcdDowntime = issueSummary(abc)
-
-  return {
+  const uptime = {
     fightDurationMs: parser.pull.duration,
-    unavailableMs,
-    effectiveFightMs: unavailableMs == null ? null : Math.max(0, parser.pull.duration - unavailableMs),
-    gcdUptimeMs,
-    gcdUptimePercent,
-    gcdCount,
-    gcdDowntimeMs: gcdDowntime.delayMs,
-    gcdDowntimeCount: gcdDowntime.count,
-    weavingDelayMs: weaving.delayMs,
-    weavingIssueCount: weaving.count,
-    interruptedCastDelayMs: interrupts.delayMs,
-    interruptedCastCount: interrupts.count,
+    unavailableMs: null,
+    effectiveFightMs: null,
+    gcdUptimeMs: null,
+    gcdUptimePercent: null,
+    gcdCount: null,
+    gcdDowntimeMs: null,
+    gcdDowntimeCount: null,
+    weavingDelayMs: null,
+    weavingIssueCount: null,
+    interruptedCastDelayMs: null,
+    interruptedCastCount: null,
   }
+  const read = (handle, extract) => {
+    if (parser._moduleErrors[handle]) return
+    try {
+      extract(parser.container[handle])
+    } catch (error) {
+      parser._moduleErrors[handle] = error instanceof Error ? error : new Error(String(error))
+    }
+  }
+  read('downtime', (downtime) => {
+    uptime.unavailableMs =
+      typeof downtime?.getDowntime === 'function' ? finiteNumber(downtime.getDowntime()) : null
+    uptime.effectiveFightMs =
+      uptime.unavailableMs == null ? null : Math.max(0, parser.pull.duration - uptime.unavailableMs)
+  })
+  read('abc', (abc) => {
+    uptime.gcdCount = finiteNumber(abc?.gcdsCounted)
+    if (uptime.gcdCount > 0) {
+      uptime.gcdUptimeMs = finiteNumber(abc.gcdUptime)
+      uptime.gcdUptimePercent =
+        typeof abc.getUptimePercent === 'function' ? finiteNumber(abc.getUptimePercent()) : null
+    }
+    const issues = issueSummary(abc)
+    uptime.gcdDowntimeMs = issues.delayMs
+    uptime.gcdDowntimeCount = issues.count
+  })
+  read('weaving', (module) => {
+    const issues = issueSummary(module)
+    uptime.weavingDelayMs = issues.delayMs
+    uptime.weavingIssueCount = issues.count
+  })
+  read('interrupts', (module) => {
+    const issues = issueSummary(module)
+    uptime.interruptedCastDelayMs = issues.delayMs
+    uptime.interruptedCastCount = issues.count
+  })
+  return uptime
 }
 
 async function analyse(input, actorId) {
@@ -439,6 +462,31 @@ async function analyse(input, actorId) {
   await parser.configure()
   parser.parseEvents({ events: adaptedEvents })
 
+  let suggestions = []
+  try {
+    const suggestionsModule = parser.container.suggestions
+    suggestions = Array.isArray(suggestionsModule?._suggestions)
+      ? suggestionsModule._suggestions.map((suggestion) => ({
+          severity: finiteNumber(suggestion.severity),
+          severityName: severityName(suggestion.severity),
+          value: finiteNumber(suggestion.value),
+          kind: suggestion.constructor?.name || 'Suggestion',
+          icon: typeof suggestion.icon === 'string' ? suggestion.icon : null,
+          content: describeNode(suggestion.content),
+          why: describeNode(suggestion.why),
+        }))
+      : []
+  } catch (error) {
+    parser._moduleErrors.suggestions = error instanceof Error ? error : new Error(String(error))
+  }
+  let checklist = []
+  try {
+    checklist = extractChecklist(parser)
+  } catch (error) {
+    parser._moduleErrors.checklist = error instanceof Error ? error : new Error(String(error))
+  }
+  const uptime = extractUptime(parser)
+
   const moduleErrors = Object.fromEntries(
     Object.entries(parser._moduleErrors || {}).map(([handle, error]) => [
       handle,
@@ -449,22 +497,8 @@ async function analyse(input, actorId) {
     handle,
     type: module?.constructor?.name || 'Unknown',
     error: moduleErrors[handle] || null,
+    dependencies: (module?.constructor?.dependencies || []).map((dependency) => dependency.handle),
   }))
-
-  const suggestionsModule = parser.container.suggestions
-  const suggestions = Array.isArray(suggestionsModule?._suggestions)
-    ? suggestionsModule._suggestions.map((suggestion) => ({
-        severity: finiteNumber(suggestion.severity),
-        severityName: severityName(suggestion.severity),
-        value: finiteNumber(suggestion.value),
-        kind: suggestion.constructor?.name || 'Suggestion',
-        icon: typeof suggestion.icon === 'string' ? suggestion.icon : null,
-        content: describeNode(suggestion.content),
-        why: describeNode(suggestion.why),
-      }))
-    : []
-  const checklist = extractChecklist(parser)
-  const uptime = extractUptime(parser)
 
   const eventTypes = {}
   for (const event of adaptedEvents) {

@@ -92,12 +92,20 @@ export interface PullAnalysis {
   fetchedAt: number
 }
 
-/** Observed enemy casts provide provisional progression anchors for a pull. */
+/** A reached cast checkpoint is not evidence that its mechanic was completed. */
 export interface ProgressionMarker {
   abilityId: number
   name: string
   occurrence: number
   timestamp: number
+  checkpointId: string
+  kind: 'checkpoint' | 'observed-cast'
+  confidence: 'provisional' | 'verified'
+  reached: true
+  /** Null until a separate encounter rule provides completion evidence. */
+  completed: boolean | null
+  /** Exact casting boss resource snapshot. Never the terminal pull percentage. */
+  bossHpPercent: number | null
 }
 
 export type PullProgression = Record<number, ProgressionMarker[]>
@@ -175,10 +183,26 @@ export interface XivanalysisSuggestion {
   why: string | null
 }
 
+export type XivanalysisMetricKey =
+  | 'gcdUptime'
+  | 'gcdDowntime'
+  | 'weaving'
+  | 'interrupts'
+  | 'checklist'
+  | 'suggestions'
+export type XivanalysisMetricState = 'measured' | 'incomplete' | 'unsupported' | 'not-applicable' | 'error'
+
+export interface XivanalysisMetricStatus {
+  state: XivanalysisMetricState
+  reason: string | null
+  modules: string[]
+}
+
 export interface XivanalysisModuleSummary {
   handle: string
   type: string
   error: string | null
+  dependencies?: string[]
 }
 
 export interface XivanalysisPlayerAnalysis {
@@ -193,6 +217,8 @@ export interface XivanalysisPlayerAnalysis {
   eventTypes: Record<string, number>
   moduleCount: number
   modules: XivanalysisModuleSummary[]
+  /** Absent only for older cached results; derive conservative status before using them. */
+  metricStatus?: Record<XivanalysisMetricKey, XivanalysisMetricStatus>
   uptime: XivanalysisUptimeMetrics
   checklist: XivanalysisChecklistRule[]
   suggestions: XivanalysisSuggestion[]

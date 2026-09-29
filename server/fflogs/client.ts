@@ -51,7 +51,7 @@ export const EVENTS_QUERY = `query Events($code: String!, $fightIDs: [Int]!, $st
 export const ENEMY_CASTS_QUERY = `query EnemyCasts($code: String!, $fightIDs: [Int]!, $start: Float!, $end: Float!) {
   reportData { report(code: $code) {
     events(fightIDs: $fightIDs, startTime: $start, endTime: $end, dataType: Casts,
-      hostilityType: Enemies, limit: 10000) {
+      hostilityType: Enemies, includeResources: true, limit: 10000) {
       data nextPageTimestamp
     }
   } }

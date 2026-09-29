@@ -4,7 +4,7 @@ A local web app for reviewing an FFLogs report by **session**, **player**, **pul
 
 ## Run
 
-Requires Node.js 22.14+ (Node 24 recommended), npm, and Git.
+Requires Node.js 22.14+ within the Node 22 release line, npm, and Git. The pinned analysis engine uses Node 22.
 
 ```powershell
 npm install
@@ -39,6 +39,16 @@ npm start           # Serves the built UI and API at http://127.0.0.1:3001
 - Desktop/mobile layouts, keyboard-accessible details, loading/error/empty states, FFLogs evidence links, and per-player links to xivanalysis.
 
 Deaths during wipe cleanup are included. The final hit and the first death are observations, **not causal blame or proof a death was avoidable**. A recent nonlethal hit is never silently promoted into a killing blow. Missing data stays unknown; a failed or unfinished event fetch never becomes a zero-death pull.
+
+## Trainer comparison workflow
+
+- Classify a pull in its detail drawer. Confirmed scrapped pulls are excluded by default; suspected resets remain included until reviewed. Manual decisions and reasons persist in this browser per report and fight.
+- Choose a DPS metric, minimum duration, reached checkpoint, and required measured-uptime coverage before comparing pulls. Filters apply to all four views. The pull table retains excluded scrapped pulls for inspection.
+- Sort the pull table and player history, or switch the matrix between deaths, DPS/rDPS/nDPS/cDPS, and uptime. Missing data stays unavailable; raid DPS requires the complete roster's metric.
+- Check measured coverage separately from loaded analyses. Failed or incomplete metrics cannot enter averages; unaffected metrics remain usable.
+- Use **What to review next** for recurring observations and specific evidence links, grouped by encounter/difficulty.
+
+Vamp Fatale's numbered Sadistic Screech checkpoints are provisional anchors, not verified mechanic completion. Boss HP at a checkpoint appears only when its cast carries a valid boss resource snapshot. Mechanic failures and correct-opener counts remain unimplemented pending verified encounter/job extraction. See [delivery slices and remaining acceptance criteria](docs/trainer-slices.md).
 
 ## xivanalysis integration status
 

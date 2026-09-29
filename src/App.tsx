@@ -1,3 +1,25 @@
+import { SessionReview } from './components/SessionReview'
+import { DeepCoverage } from './components/DeepCoverage'
+import { AttemptEditor } from './components/AttemptEditor'
+import { useAttemptOverrides } from './useAttemptOverrides'
+import { classifyAttempt, includeAttempt } from '../shared/attempts'
+import {
+  comparePulls,
+  sortValue,
+  playerMetric,
+  pullMetric,
+  measuredUptimeCoverage,
+  DPS_METRICS,
+  metricLabel,
+  type ReviewMetric,
+  type PullSort,
+} from '../shared/review'
+import {
+  checkpointOptions,
+  checkpointKey,
+  reachedCheckpoint,
+  furthestCheckpoint,
+} from '../shared/progression'
 import { Stat, JobBadge, Empty } from './components/ui'
 import { PullDetail, Coverage } from './components/PullDetail'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -28,7 +50,14 @@ import { summarize } from '../shared/analysis'
 import { summarizeXivanalysis } from '../shared/xivanalysis'
 import { demoAnalyses, demoReport } from '../shared/demo'
 import { parseReportInput } from '../shared/report-input'
-import type { Pull, PullAnalysis, PullProgression, Report, XivanalysisPlayerAnalysis } from '../shared/types'
+import type {
+  Pull,
+  PullAnalysis,
+  PullProgression,
+  Report,
+  DpsMetricKey,
+  XivanalysisPlayerAnalysis,
+} from '../shared/types'
 import { api } from './api'
 import { duration, percent } from './format'
 
@@ -64,9 +93,19 @@ export function App() {
   const [revision, setRevision] = useState(0)
   const [focusedPull, setFocusedPull] = useState<number | null>(null)
   const [focusedPlayer, setFocusedPlayer] = useState<number | null>(null)
-  const [playerPullSort, setPlayerPullSort] = useState<
-    'boss' | 'dps' | 'uptime' | 'fewest-deaths' | 'most-deaths'
-  >('boss')
+  const [playerPullSort, setPlayerPullSort] = useState<PullSort>('boss')
+  const [pullSort, setPullSort] = useState<PullSort>('progression')
+  const [dpsMetric, setDpsMetric] = useState<DpsMetricKey>('rdps')
+  const [matrixMetric, setMatrixMetric] = useState<ReviewMetric>('deaths')
+  const [minimumSeconds, setMinimumSeconds] = useState(0)
+  const [minimumCoverage, setMinimumCoverage] = useState(0)
+  const [checkpoint, setCheckpoint] = useState('')
+  const [includeScrapped, setIncludeScrapped] = useState(false)
+  const {
+    overrides: attemptOverrides,
+    update: updateAttempt,
+    error: attemptSaveError,
+  } = useAttemptOverrides(report.code)
   const [helpOpen, setHelpOpen] = useState(false)
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     if (typeof window === 'undefined') return 'dark'
@@ -116,7 +155,8 @@ export function App() {
     setProgression({})
     setProgressionFailures([])
     setProgressionStatus('loading')
-    api.progression(report.code, controller.signal)
+    api
+      .progression(report.code, controller.signal)
       .then((result) => {
         setProgression(result.pulls)
         setProgressionFailures(result.failedPulls)
@@ -131,36 +171,116 @@ export function App() {
     () => report.pulls.filter((p) => encounter === 'all' || encounterKey(p) === encounter),
     [report, encounter],
   )
-  const pulls = useMemo(() => available.filter((p) => selected.includes(p.id)), [available, selected])
+  const selectedPulls = useMemo(() => available.filter((p) => selected.includes(p.id)), [available, selected])
+  const classifications = useMemo(
+    () =>
+      new Map(
+        report.pulls.map((p) => [
+          p.id,
+          classifyAttempt(p, analyses[p.id], report.pulls, attemptOverrides[p.id]),
+        ]),
+      ),
+    [report.pulls, analyses, attemptOverrides],
+  )
+  const checkpointChoices = useMemo(() => checkpointOptions(available, progression), [available, progression])
+  const selectedCheckpoint = checkpointChoices.find(
+    (option) => `${option.encounterID}:${option.difficulty}:${option.key}` === checkpoint,
+  )
+  const comparisonPulls = useMemo(
+    () =>
+      selectedPulls.filter(
+        (p) =>
+          p.endTime - p.startTime >= minimumSeconds * 1000 &&
+          (!checkpoint ||
+            (!!selectedCheckpoint &&
+              p.encounterID === selectedCheckpoint.encounterID &&
+              p.difficulty === selectedCheckpoint.difficulty &&
+              reachedCheckpoint(progression[p.id] ?? [], selectedCheckpoint.key))) &&
+          (!minimumCoverage ||
+            measuredUptimeCoverage(
+              p,
+              Object.values(deepAnalyses),
+              view === 'players' ? focusedPlayer : null,
+            ) >= minimumCoverage),
+      ),
+    [
+      selectedPulls,
+      minimumSeconds,
+      checkpoint,
+      selectedCheckpoint,
+      progression,
+      minimumCoverage,
+      deepAnalyses,
+      view,
+      focusedPlayer,
+    ],
+  )
+  const pulls = useMemo(
+    () => comparisonPulls.filter((p) => includeAttempt(classifications.get(p.id)!, includeScrapped)),
+    [comparisonPulls, classifications, includeScrapped],
+  )
+  const deepForPull = (pull: Pull) =>
+    pull.playerIds.flatMap((id) =>
+      deepAnalyses[xivanalysisKey(pull.id, id)] ? [deepAnalyses[xivanalysisKey(pull.id, id)]] : [],
+    )
+  const sortPulls = (items: Pull[], sort: PullSort, playerId?: number | null) =>
+    [...items].sort((a, b) =>
+      comparePulls(a, b, sort, (p) =>
+        sortValue(p, sort, dpsMetric, analyses[p.id], deepForPull(p), playerId),
+      ),
+    )
+  const rankedPulls = sortPulls(comparisonPulls, pullSort).sort(
+    (a, b) =>
+      Number(!includeAttempt(classifications.get(a.id)!, includeScrapped)) -
+      Number(!includeAttempt(classifications.get(b.id)!, includeScrapped)),
+  )
+  const excludedCount = selectedPulls.length - pulls.length
   const pullGroups = useMemo(() => {
     if (progressionStatus !== 'ready' || report.source === 'demo') {
       return [{ key: 'all', label: 'Pulls', pulls: available, rank: 0 }]
     }
     const encounters = [...new Set(available.map(encounterKey))]
-    const references = new Map(encounters.map((key) => [
-      key,
-      [...available].filter((pull) => encounterKey(pull) === key)
-        .sort((a, b) => Number(b.kill) - Number(a.kill)
-          || (a.fightRemaining ?? 100) - (b.fightRemaining ?? 100)
-          || (b.endTime - b.startTime) - (a.endTime - a.startTime))[0],
-    ] as const))
+    const references = new Map(
+      encounters.map(
+        (key) =>
+          [
+            key,
+            [...available]
+              .filter((pull) => encounterKey(pull) === key)
+              .sort(
+                (a, b) =>
+                  Number(b.kill) - Number(a.kill) ||
+                  (a.fightRemaining ?? 100) - (b.fightRemaining ?? 100) ||
+                  b.endTime - b.startTime - (a.endTime - a.startTime),
+              )[0],
+          ] as const,
+      ),
+    )
     const groups = new Map<string, { key: string; label: string; pulls: Pull[]; rank: number }>()
     for (const pull of available) {
       const encounterId = encounterKey(pull)
       const reference = references.get(encounterId)
-      const last = progression[pull.id]?.at(-1)
+      const last = furthestCheckpoint(progression[pull.id] ?? [])
       const markerId = last ? `${last.name.toLocaleLowerCase()}:${last.occurrence}` : 'opening'
       const failed = progressionFailures.includes(pull.id)
       const key = `${encounterId}:${failed ? 'failed' : pull.kill ? 'clear' : markerId}`
       const label = `${encounter === 'all' ? `${pull.name} · ` : ''}${failed ? 'Cast data unavailable' : pull.kill ? 'Clear' : last ? `${last.name} #${last.occurrence}` : 'Opening / no boss cast recorded'}`
-      const referenceMarker = last && reference ? progression[reference.id]?.find(
-        (candidate) => candidate.name.toLocaleLowerCase() === last.name.toLocaleLowerCase()
-          && candidate.occurrence === last.occurrence,
-      ) : undefined
-      const elapsed = referenceMarker && reference
-        ? referenceMarker.timestamp - reference.startTime
-        : last ? last.timestamp - pull.startTime : -1
-      const rank = encounters.indexOf(encounterId) * 1000000 + (failed ? 999999 : pull.kill ? 999998 : elapsed / 1000)
+      const referenceMarker =
+        last && reference
+          ? progression[reference.id]?.find(
+              (candidate) =>
+                candidate.name.toLocaleLowerCase() === last.name.toLocaleLowerCase() &&
+                candidate.occurrence === last.occurrence,
+            )
+          : undefined
+      const elapsed =
+        referenceMarker && reference
+          ? referenceMarker.timestamp - reference.startTime
+          : last
+            ? last.timestamp - pull.startTime
+            : -1
+      const rank =
+        encounters.indexOf(encounterId) * 1000000 + (failed ? 999999 : pull.kill ? 999998 : elapsed / 1000)
       const group = groups.get(key) ?? { key, label, pulls: [] as Pull[], rank }
       group.pulls.push(pull)
       groups.set(key, group)
@@ -252,7 +372,7 @@ export function App() {
         if (event.key === 'Tab') {
           const elements = [
             ...(detailRef.current?.querySelectorAll<HTMLElement>(
-              'button:not(:disabled), a[href], summary, [tabindex="0"]',
+              'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], summary, [tabindex="0"]',
             ) ?? []),
           ].filter((el) => el.getClientRects().length)
           const first = elements[0],
@@ -328,18 +448,13 @@ export function App() {
       entries.push(result)
       grouped.set(result.fightId, entries)
     }
-    return new Map(
-      pulls.map((pull) => [pull.id, summarizeXivanalysis(grouped.get(pull.id) ?? [])]),
-    )
+    return new Map(pulls.map((pull) => [pull.id, summarizeXivanalysis(grouped.get(pull.id) ?? [])]))
   }, [deepAnalyses, pulls])
   const selectedDeepResults = useMemo(() => {
     const selectedPullIds = new Set(pulls.map((pull) => pull.id))
     return Object.values(deepAnalyses).filter((result) => selectedPullIds.has(result.fightId))
   }, [deepAnalyses, pulls])
-  const deepSessionSummary = useMemo(
-    () => summarizeXivanalysis(selectedDeepResults),
-    [selectedDeepResults],
-  )
+  const deepSessionSummary = useMemo(() => summarizeXivanalysis(selectedDeepResults), [selectedDeepResults])
   const deepSessionTargets = pulls.flatMap((pull) =>
     pull.playerIds.map((playerId) => ({ pullId: pull.id, playerId })),
   )
@@ -349,13 +464,22 @@ export function App() {
     deepBatchProgress?.scope === scope && deepBatchProgress.done < deepBatchProgress.total
 
   function installReport(next: Report, fightId?: number | 'last') {
+    setCheckpoint('')
+    setMinimumCoverage(0)
+    setMinimumSeconds(0)
     analysisController.current?.abort()
     xivanalysisController.current?.abort()
     deepBatchController.current?.abort()
     const initial = fightId === 'last' ? next.pulls.at(-1) : next.pulls.find((p) => p.id === fightId)
     setReport(next)
-    setEncounter(initial ? encounterKey(initial) : 'all')
-    setSelected(initial ? [initial.id] : next.pulls.map((p) => p.id))
+    setEncounter(initial ? encounterKey(initial) : next.pulls[0] ? encounterKey(next.pulls[0]) : 'all')
+    setSelected(
+      initial
+        ? [initial.id]
+        : next.pulls
+            .filter((p) => !next.pulls[0] || encounterKey(p) === encounterKey(next.pulls[0]))
+            .map((p) => p.id),
+    )
     setAnalyses(next.source === 'demo' ? Object.fromEntries(demoAnalyses.map((a) => [a.fightId, a])) : {})
     setFailures({})
     setDeepAnalyses({})
@@ -399,6 +523,7 @@ export function App() {
   }
 
   function changeEncounter(value: string) {
+    setCheckpoint('')
     setEncounter(value)
     setSelected(report.pulls.filter((p) => value === 'all' || encounterKey(p) === value).map((p) => p.id))
     setFocusedPlayer(null)
@@ -566,25 +691,45 @@ export function App() {
         </div>
         <div className="pull-list">
           {progressionStatus === 'loading' && <p className="progression-note">Reading enemy casts…</p>}
-          {progressionStatus === 'unavailable' && <p className="progression-note">Cast grouping unavailable.</p>}
-          {progressionFailures.length > 0 && <p className="progression-note">Cast data missing for {progressionFailures.length} pull(s).</p>}
+          {progressionStatus === 'unavailable' && (
+            <p className="progression-note">Cast grouping unavailable.</p>
+          )}
+          {progressionFailures.length > 0 && (
+            <p className="progression-note">Cast data missing for {progressionFailures.length} pull(s).</p>
+          )}
           {pullGroups.map((group) => (
             <div className="pull-group" key={group.key}>
-              {group.key !== 'all' && <div className="pull-group-title" title={`Last observed enemy cast: ${group.label}`}>{group.label}</div>}
+              {group.key !== 'all' && (
+                <div
+                  className="pull-group-title"
+                  title={`Furthest checkpoint or provisional cast: ${group.label}`}
+                >
+                  {group.label}
+                </div>
+              )}
               {group.pulls.map((p) => (
                 <button
                   type="button"
                   key={p.id}
                   className={`pull-option ${selected.includes(p.id) ? 'selected' : ''}`}
                   aria-pressed={selected.includes(p.id)}
-                  onClick={() => setSelected((current) =>
-                    current.includes(p.id) ? current.filter((id) => id !== p.id) : [...current, p.id],
-                  )}
+                  onClick={() =>
+                    setSelected((current) =>
+                      current.includes(p.id) ? current.filter((id) => id !== p.id) : [...current, p.id],
+                    )
+                  }
                 >
                   <span className="pull-selection-indicator" aria-hidden="true" />
                   <span className="pull-option-name">
                     Pull {p.id}
-                    <small>{encounter === 'all' ? p.name : duration(p.endTime - p.startTime)}</small>
+                    <small>
+                      {encounter === 'all' ? p.name : duration(p.endTime - p.startTime)}
+                      {classifications.get(p.id)?.status === 'scrapped'
+                        ? ' · scrapped'
+                        : classifications.get(p.id)?.status === 'suspected-reset'
+                          ? ' · suspected reset'
+                          : ''}
+                    </small>
                   </span>
                   <span className={p.kill ? 'kill-text' : 'remaining'}>
                     {p.kill ? <Check size={15} aria-label="Kill" /> : percent(p.fightRemaining)}
@@ -728,7 +873,8 @@ export function App() {
             </div>
             <span className="filter-count">
               <Swords size={15} />
-              {pulls.length} pulls selected<span className="separator-dot">·</span>
+              {pulls.length} eligible / {selectedPulls.length} selected
+              <span className="separator-dot">·</span>
               {summary.players.length} players analyzed
             </span>
             <button
@@ -741,18 +887,151 @@ export function App() {
               <RefreshCw size={16} />
             </button>
           </section>
+          <section className="comparison-controls" aria-label="Comparable pull filters">
+            <label>
+              DPS metric
+              <select
+                aria-label="DPS metric"
+                value={dpsMetric}
+                onChange={(e) => setDpsMetric(e.target.value as DpsMetricKey)}
+              >
+                {DPS_METRICS.map((metric) => (
+                  <option key={metric} value={metric}>
+                    {metricLabel(metric)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Minimum duration (seconds)
+              <input
+                aria-label="Minimum duration in seconds"
+                type="number"
+                min="0"
+                max="7200"
+                value={minimumSeconds}
+                onChange={(e) => setMinimumSeconds(Math.max(0, Math.min(7200, Number(e.target.value) || 0)))}
+              />
+            </label>
+            <label>
+              Reached checkpoint
+              <select
+                aria-label="Reached checkpoint"
+                value={checkpoint}
+                onChange={(e) => setCheckpoint(e.target.value)}
+              >
+                <option value="">Any checkpoint</option>
+                {checkpointChoices.map((option) => (
+                  <option
+                    key={`${option.encounterID}:${option.difficulty}:${option.key}`}
+                    value={`${option.encounterID}:${option.difficulty}:${option.key}`}
+                  >
+                    {encounter === 'all'
+                      ? `${available.find((p) => p.encounterID === option.encounterID && p.difficulty === option.difficulty)?.name} · `
+                      : ''}
+                    {option.label}
+                    {option.confidence === 'provisional' ? ' (provisional)' : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Measured uptime coverage
+              <select
+                aria-label="Minimum measured uptime coverage"
+                value={minimumCoverage}
+                onChange={(e) => setMinimumCoverage(Number(e.target.value))}
+              >
+                <option value="0">Any coverage</option>
+                <option value="50">At least 50%</option>
+                <option value="100">100% of comparison roster</option>
+              </select>
+            </label>
+            <button
+              className={`button ${includeScrapped ? 'primary' : ''}`}
+              aria-pressed={includeScrapped}
+              onClick={() => setIncludeScrapped((v) => !v)}
+            >
+              {includeScrapped ? 'Scrapped included' : 'Scrapped excluded'}
+            </button>
+            <button
+              className="text-button"
+              onClick={() => {
+                setMinimumSeconds(0)
+                setMinimumCoverage(0)
+                setCheckpoint('')
+                setIncludeScrapped(false)
+              }}
+            >
+              Reset filters
+            </button>
+            <p>
+              {excludedCount} selected pull(s) excluded from summaries and rankings. Coverage means players
+              with measured uptime, not percentage of the encounter completed.{' '}
+              {encounter === 'all'
+                ? 'Pull rankings are grouped by encounter and difficulty; choose one encounter for comparable player averages.'
+                : 'Choose comparable duration and progression before judging best performance.'}
+            </p>
+            {minimumCoverage > 0 && (
+              <button
+                className="text-button"
+                disabled={isDemo || isDeepBatchRunning(sessionBatchScope)}
+                onClick={() =>
+                  void analyzeDeepTargets(
+                    selectedPulls.flatMap((p) => p.playerIds.map((playerId) => ({ pullId: p.id, playerId }))),
+                    sessionBatchScope,
+                  )
+                }
+              >
+                Analyze selected pulls to measure coverage
+              </button>
+            )}
+          </section>
+          {selectedCheckpoint && (
+            <div className="notice checkpoint-summary">
+              {selectedCheckpoint.label}: reached in{' '}
+              {
+                comparisonPulls.filter((p) => includeAttempt(classifications.get(p.id)!, includeScrapped))
+                  .length
+              }{' '}
+              eligible selected pulls. Completion is not inferred from reaching the cast.{' '}
+              {selectedCheckpoint.confidence === 'provisional' ? 'This checkpoint is provisional.' : ''} Best
+              observed boss HP at this checkpoint:{' '}
+              {(() => {
+                const samples = pulls.flatMap((p) =>
+                  (progression[p.id] ?? [])
+                    .filter((m) => checkpointKey(m) === selectedCheckpoint.key && m.bossHpPercent != null)
+                    .map((m) => m.bossHpPercent!),
+                )
+                return samples.length
+                  ? `${percent(Math.min(...samples))} (${samples.length} HP observations)`
+                  : 'unavailable'
+              })()}
+            </div>
+          )}
+          {attemptSaveError && (
+            <div role="alert" className="notice error">
+              {attemptSaveError}
+            </div>
+          )}
           {!report.pulls.length ? (
             <Empty
               title="No boss encounters found"
               text="This report has no completed boss segments yet. Refresh after a pull is logged."
             />
-          ) : !pulls.length ? (
+          ) : !selectedPulls.length ? (
             <Empty
               title="Choose a pull to get started"
               text="Select pulls in the sidebar to build your analysis."
             />
           ) : (
             <>
+              {!pulls.length && (
+                <div className="notice">
+                  No eligible pulls match these filters. Adjust filters or include scrapped pulls to review
+                  them.
+                </div>
+              )}
               {(pendingCount > 0 || failedPulls.length > 0) && (
                 <div className={`notice ${failedPulls.length ? 'error' : ''}`} role="status">
                   {pendingCount > 0 && <LoaderCircle size={17} className="spin" />}
@@ -815,6 +1094,17 @@ export function App() {
               </section>
               {view === 'session' && (
                 <>
+                  <SessionReview
+                    key={report.code}
+                    report={report}
+                    pulls={pulls}
+                    analyses={Object.values(analyses)}
+                    deepAnalyses={selectedDeepResults}
+                    onInspect={(pullId, playerId) => {
+                      setFocusedPull(pullId)
+                      setFocusedPlayer(playerId ?? null)
+                    }}
+                  />
                   <section className="card progression">
                     <div className="card-heading">
                       <div>
@@ -975,8 +1265,15 @@ export function App() {
                               ? '—'
                               : `${deepSessionSummary.gcdUptimePercent.toFixed(1)}%`}
                           </strong>{' '}
-                          · checklist {deepSessionSummary.checklistPassed}/{deepSessionSummary.checklistRules}{' '}
-                          · {deepSessionSummary.severeSuggestions} major findings
+                          · checklist{' '}
+                          {deepSessionSummary.metricCoverage.checklist.measured
+                            ? `${deepSessionSummary.checklistPassed}/${deepSessionSummary.checklistRules}`
+                            : 'unavailable'}{' '}
+                          ·{' '}
+                          {deepSessionSummary.metricCoverage.suggestions.measured
+                            ? deepSessionSummary.severeSuggestions
+                            : 'unavailable'}{' '}
+                          major findings
                         </p>
                       ) : (
                         <p>
@@ -984,6 +1281,7 @@ export function App() {
                           execution metrics across the selected session.
                         </p>
                       )}
+                      <DeepCoverage summary={deepSessionSummary} expected={deepSessionTargets.length} />
                       {deepBatchError?.scope === sessionBatchScope && (
                         <p className="deep-inline-error">{deepBatchError.message}</p>
                       )}
@@ -1005,7 +1303,7 @@ export function App() {
                             {deepBatchProgress?.scope === sessionBatchScope ? deepBatchProgress.total : 0}
                           </>
                         ) : deepSessionSummary.playerPullsAnalyzed >= deepSessionTargets.length ? (
-                          'Session analyzed'
+                          'Session results loaded'
                         ) : (
                           'Analyze selected session'
                         )}
@@ -1030,11 +1328,13 @@ export function App() {
                       onChange={(e) => setFocusedPlayer(e.target.value ? Number(e.target.value) : null)}
                     >
                       <option value="">All players</option>
-                      {summary.players.map((p) => (
-                        <option value={p.id} key={p.id}>
-                          {p.name} · {p.job}
-                        </option>
-                      ))}
+                      {report.players
+                        .filter((player) => selectedPulls.some((p) => p.playerIds.includes(player.id)))
+                        .map((p) => (
+                          <option value={p.id} key={p.id}>
+                            {p.name} · {p.job}
+                          </option>
+                        ))}
                     </select>
                   </div>
                   <div className="table-scroll">
@@ -1045,10 +1345,10 @@ export function App() {
                           <th>Pulls</th>
                           <th>Deaths</th>
                           <th>Deaths / pull</th>
-                          <th>Avg DPS</th>
-                          <th>Best DPS</th>
+                          <th>Avg {metricLabel(dpsMetric)}</th>
+                          <th>Best {metricLabel(dpsMetric)}</th>
                           <th>GCD uptime</th>
-                          <th>Deep pulls</th>
+                          <th>Measured / loaded / eligible</th>
                           <th>First deaths</th>
                           <th>Death-free pulls</th>
                         </tr>
@@ -1070,12 +1370,14 @@ export function App() {
                               </td>
                               <td>{p.deathsPerPull.toFixed(2)}</td>
                               <td>
-                                {p.averageDps.dps == null
+                                {p.averageDps[dpsMetric] == null
                                   ? '—'
-                                  : Math.round(p.averageDps.dps).toLocaleString()}
+                                  : Math.round(p.averageDps[dpsMetric]).toLocaleString()}
                               </td>
                               <td>
-                                {p.bestDps.dps == null ? '—' : Math.round(p.bestDps.dps).toLocaleString()}
+                                {p.bestDps[dpsMetric] == null
+                                  ? '—'
+                                  : Math.round(p.bestDps[dpsMetric]).toLocaleString()}
                               </td>
                               <td>
                                 {deepSummaryByPlayer.get(p.id)?.gcdUptimePercent == null
@@ -1083,6 +1385,7 @@ export function App() {
                                   : `${deepSummaryByPlayer.get(p.id)!.gcdUptimePercent!.toFixed(1)}%`}
                               </td>
                               <td>
+                                {deepSummaryByPlayer.get(p.id)?.gcdPlayerPullsMeasured ?? 0} /{' '}
                                 {deepSummaryByPlayer.get(p.id)?.playerPullsAnalyzed ?? 0} / {p.pulls}
                               </td>
                               <td>{p.firstDeaths}</td>
@@ -1109,8 +1412,9 @@ export function App() {
                             className="button"
                             disabled={
                               isDemo ||
-                              playerBatchScope != null && isDeepBatchRunning(playerBatchScope) ||
-                              (focusedDeepSummary?.playerPullsAnalyzed ?? 0) >= focusedParticipatingPulls.length
+                              (playerBatchScope != null && isDeepBatchRunning(playerBatchScope)) ||
+                              (focusedDeepSummary?.playerPullsAnalyzed ?? 0) >=
+                                focusedParticipatingPulls.length
                             }
                             onClick={() => void analyzeFocusedPlayerPulls()}
                           >
@@ -1122,7 +1426,7 @@ export function App() {
                               </>
                             ) : (focusedDeepSummary?.playerPullsAnalyzed ?? 0) >=
                               focusedParticipatingPulls.length ? (
-                              'Deep analysis complete'
+                              'Deep results loaded'
                             ) : (
                               'Analyze selected pulls'
                             )}
@@ -1160,7 +1464,7 @@ export function App() {
                             <div>
                               <span>Checklist rules</span>
                               <strong>
-                                {(focusedDeepSummary?.playerPullsAnalyzed ?? 0) === 0
+                                {!focusedDeepSummary?.metricCoverage.checklist.measured
                                   ? '—'
                                   : `${focusedDeepSummary!.checklistPassed} / ${focusedDeepSummary!.checklistRules}`}
                               </strong>
@@ -1169,7 +1473,7 @@ export function App() {
                             <div>
                               <span>Major findings</span>
                               <strong>
-                                {(focusedDeepSummary?.playerPullsAnalyzed ?? 0) === 0
+                                {!focusedDeepSummary?.metricCoverage.suggestions.measured
                                   ? '—'
                                   : focusedDeepSummary!.severeSuggestions}
                               </strong>
@@ -1180,6 +1484,12 @@ export function App() {
                               </small>
                             </div>
                           </div>
+                        )}
+                        {focusedDeepSummary && (
+                          <DeepCoverage
+                            summary={focusedDeepSummary}
+                            expected={focusedParticipatingPulls.length}
+                          />
                         )}
                         {deepBatchError?.scope === playerBatchScope && (
                           <div className="notice error deep-rollup-error" role="alert">
@@ -1195,76 +1505,39 @@ export function App() {
                           onChange={(e) => setPlayerPullSort(e.target.value as typeof playerPullSort)}
                         >
                           <option value="boss">Best boss HP</option>
-                          <option value="dps">Highest DPS</option>
+                          <option value="dps">Highest {metricLabel(dpsMetric)}</option>
                           <option value="uptime">Highest GCD uptime</option>
                           <option value="fewest-deaths">Fewest deaths</option>
                           <option value="most-deaths">Most deaths</option>
                         </select>
                       </div>
-                      {[...pulls]
-                        .filter((p) => p.playerIds.includes(focusedPlayer))
-                        .sort((a, b) => {
-                          const ap = performanceFor(a.id, focusedPlayer)
-                          const bp = performanceFor(b.id, focusedPlayer)
-                          if (!ap && !bp) return a.id - b.id
-                          if (!ap) return 1
-                          if (!bp) return -1
-                          if (playerPullSort === 'dps')
-                            return (
-                              (bp.metrics.dps ?? -Infinity) - (ap.metrics.dps ?? -Infinity) || a.id - b.id
-                            )
-                          if (playerPullSort === 'uptime') {
-                            const aUptime =
-                              deepAnalyses[xivanalysisKey(a.id, focusedPlayer)]?.uptime.gcdUptimePercent
-                            const bUptime =
-                              deepAnalyses[xivanalysisKey(b.id, focusedPlayer)]?.uptime.gcdUptimePercent
-                            if (aUptime == null && bUptime == null) return a.id - b.id
-                            if (aUptime == null) return 1
-                            if (bUptime == null) return -1
-                            return bUptime - aUptime || a.id - b.id
-                          }
-                          if (playerPullSort === 'fewest-deaths')
-                            return (
-                              ap.deaths - bp.deaths ||
-                              (bp.metrics.dps ?? 0) - (ap.metrics.dps ?? 0) ||
-                              a.id - b.id
-                            )
-                          if (playerPullSort === 'most-deaths')
-                            return (
-                              bp.deaths - ap.deaths ||
-                              (ap.metrics.dps ?? 0) - (bp.metrics.dps ?? 0) ||
-                              a.id - b.id
-                            )
-                          return (
-                            (ap.bossRemaining ?? Number.POSITIVE_INFINITY) -
-                              (bp.bossRemaining ?? Number.POSITIVE_INFINITY) ||
-                            (bp.metrics.dps ?? 0) - (ap.metrics.dps ?? 0) ||
-                            a.id - b.id
-                          )
-                        })
-                        .map((p) => {
-                          const performance = performanceFor(p.id, focusedPlayer)
-                          const deep = deepAnalyses[xivanalysisKey(p.id, focusedPlayer)]
-                          return (
-                            <button key={p.id} onClick={() => setFocusedPull(p.id)}>
-                              <span>
-                                Pull {p.id} · {p.name}
-                              </span>
-                              <span>
-                                {performance
-                                  ? `${performance.metrics.dps == null ? '—' : Math.round(performance.metrics.dps).toLocaleString()} DPS · ${
-                                      deep?.uptime.gcdUptimePercent == null
-                                        ? 'uptime —'
-                                        : `${deep.uptime.gcdUptimePercent.toFixed(1)}% uptime`
-                                    } · ${performance.deaths} ${performance.deaths === 1 ? 'death' : 'deaths'} · ${percent(
-                                      performance.bossRemaining,
-                                    )} boss HP`
-                                  : 'Not analyzed'}{' '}
-                                <ChevronRight size={15} />
-                              </span>
-                            </button>
-                          )
-                        })}
+                      {sortPulls(
+                        pulls.filter((p) => p.playerIds.includes(focusedPlayer)),
+                        playerPullSort,
+                        focusedPlayer,
+                      ).map((p) => {
+                        const performance = performanceFor(p.id, focusedPlayer)
+                        const deep = deepAnalyses[xivanalysisKey(p.id, focusedPlayer)]
+                        return (
+                          <button key={p.id} onClick={() => setFocusedPull(p.id)}>
+                            <span>
+                              Pull {p.id} · {p.name}
+                            </span>
+                            <span>
+                              {performance
+                                ? `${performance.metrics[dpsMetric] == null ? '—' : Math.round(performance.metrics[dpsMetric]!).toLocaleString()} ${metricLabel(dpsMetric)} · ${
+                                    playerMetric('uptime', analyses[p.id], focusedPlayer, deep) == null
+                                      ? 'uptime —'
+                                      : `${playerMetric('uptime', analyses[p.id], focusedPlayer, deep)!.toFixed(1)}% uptime`
+                                  } · ${performance.deaths} ${performance.deaths === 1 ? 'death' : 'deaths'} · ${percent(
+                                    performance.bossRemaining,
+                                  )} boss HP`
+                                : 'Not analyzed'}{' '}
+                              <ChevronRight size={15} />
+                            </span>
+                          </button>
+                        )
+                      })}
                     </div>
                   )}
                 </section>
@@ -1274,7 +1547,27 @@ export function App() {
                   <div className="card-heading">
                     <div>
                       <h2>Pull breakdown</h2>
-                      <p>Open a pull for the death timeline and the evidence behind each killing blow.</p>
+                      <p>
+                        Excluded scrapped pulls stay visible for review. Open a pull to classify it and
+                        inspect evidence.
+                      </p>
+                      <label>
+                        Sort pulls{' '}
+                        <select
+                          aria-label="Sort pulls"
+                          value={pullSort}
+                          onChange={(e) => setPullSort(e.target.value as PullSort)}
+                        >
+                          <option value="progression">Deepest fight progression</option>
+                          <option value="boss">Lowest boss HP</option>
+                          <option value="dps">Highest raid {metricLabel(dpsMetric)}</option>
+                          <option value="uptime">Highest measured GCD uptime</option>
+                          <option value="fewest-deaths">Fewest deaths</option>
+                          <option value="most-deaths">Most deaths</option>
+                          <option value="duration">Longest duration</option>
+                          <option value="chronological">Chronological</option>
+                        </select>
+                      </label>
                     </div>
                   </div>
                   <div className="table-scroll">
@@ -1282,18 +1575,20 @@ export function App() {
                       <thead>
                         <tr>
                           <th>Pull / encounter</th>
+                          <th>Classification / checkpoint</th>
+                          <th>Raid {metricLabel(dpsMetric)}</th>
                           <th>Duration</th>
                           <th>Fight left</th>
                           <th>Boss HP left</th>
                           <th>Deaths</th>
                           <th>First death</th>
                           <th>GCD uptime</th>
-                          <th>Deep players</th>
+                          <th>Measured / loaded / roster</th>
                           <th />
                         </tr>
                       </thead>
                       <tbody>
-                        {pulls.map((p) => {
+                        {rankedPulls.map((p) => {
                           const analysis = analyses[p.id]
                           const first = analysis?.deaths.find((d) => d.firstDeath)
                           const deep = deepSummaryByPull.get(p.id)
@@ -1303,6 +1598,22 @@ export function App() {
                               <td>
                                 <strong>Pull {p.id}</strong>
                                 <small className="table-subtext">{p.name}</small>
+                              </td>
+                              <td>
+                                <strong>{classifications.get(p.id)?.status}</strong>
+                                {!includeAttempt(classifications.get(p.id)!, includeScrapped) && (
+                                  <small className="table-subtext">Excluded from comparisons</small>
+                                )}
+                                <small className="table-subtext">
+                                  {furthestCheckpoint(progression[p.id] ?? [])
+                                    ? `${furthestCheckpoint(progression[p.id] ?? [])!.name} #${furthestCheckpoint(progression[p.id] ?? [])!.occurrence}`
+                                    : 'Checkpoint unavailable'}
+                                </small>
+                              </td>
+                              <td>
+                                {pullMetric(dpsMetric, p, analysis) == null
+                                  ? '—'
+                                  : Math.round(pullMetric(dpsMetric, p, analysis)!).toLocaleString()}
                               </td>
                               <td>{duration(p.endTime - p.startTime)}</td>
                               <td>
@@ -1329,7 +1640,8 @@ export function App() {
                                   : `${deep.gcdUptimePercent.toFixed(1)}%`}
                               </td>
                               <td>
-                                {deep?.playerPullsAnalyzed ?? 0} / {p.playerIds.length}
+                                {deep?.gcdPlayerPullsMeasured ?? 0} / {deep?.playerPullsAnalyzed ?? 0} /{' '}
+                                {p.playerIds.length}
                               </td>
                               <td>
                                 <div className="table-actions">
@@ -1353,10 +1665,12 @@ export function App() {
                                   >
                                     {isDeepBatchRunning(pullBatchScope)
                                       ? `${deepBatchProgress?.scope === pullBatchScope ? deepBatchProgress.done : 0}/${
-                                          deepBatchProgress?.scope === pullBatchScope ? deepBatchProgress.total : 0
+                                          deepBatchProgress?.scope === pullBatchScope
+                                            ? deepBatchProgress.total
+                                            : 0
                                         }`
                                       : (deep?.playerPullsAnalyzed ?? 0) >= p.playerIds.length
-                                        ? 'Deep ✓'
+                                        ? 'Results loaded'
                                         : 'Analyze'}
                                   </button>
                                 </div>
@@ -1376,10 +1690,20 @@ export function App() {
                 <section className="card">
                   <div className="card-heading">
                     <div>
-                      <h2>Deaths by player × pull</h2>
+                      <h2>{metricLabel(matrixMetric)} by player × pull</h2>
                       <p>A dash means the player did not participate. Select a cell to inspect the pull.</p>
                     </div>
-                    <span className="pill neutral">Death counts</span>
+                    <select
+                      aria-label="Matrix metric"
+                      value={matrixMetric}
+                      onChange={(e) => setMatrixMetric(e.target.value as ReviewMetric)}
+                    >
+                      {(['deaths', ...DPS_METRICS, 'uptime'] as ReviewMetric[]).map((metric) => (
+                        <option key={metric} value={metric}>
+                          {metricLabel(metric)}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div className="table-scroll">
                     <table className="matrix">
@@ -1405,19 +1729,28 @@ export function App() {
                               {pulls.map((p) => {
                                 const participates = p.playerIds.includes(player.id)
                                 const analysis = analyses[p.id]
-                                const count = analysis?.deaths.filter((d) => d.playerId === player.id).length
+                                const count = playerMetric(
+                                  matrixMetric,
+                                  analysis,
+                                  player.id,
+                                  deepAnalyses[xivanalysisKey(p.id, player.id)],
+                                )
                                 return (
                                   <td key={p.id}>
                                     {participates ? (
                                       <button
-                                        aria-label={`${player.name}, pull ${p.id}, ${count == null ? 'not analyzed' : `${count} deaths`}`}
-                                        className={`matrix-cell ${count == null ? 'unloaded' : count ? 'bad' : 'good'}`}
+                                        aria-label={`${player.name}, pull ${p.id}, ${count == null ? 'not analyzed' : `${count} ${metricLabel(matrixMetric)}`}`}
+                                        className={`matrix-cell ${count == null ? 'unloaded' : matrixMetric === 'deaths' ? (count ? 'bad' : 'good') : 'neutral'}`}
                                         onClick={() => {
                                           setFocusedPlayer(player.id)
                                           setFocusedPull(p.id)
                                         }}
                                       >
-                                        {count ?? '…'}
+                                        {count == null
+                                          ? '—'
+                                          : matrixMetric === 'uptime'
+                                            ? `${count.toFixed(1)}%`
+                                            : Math.round(count).toLocaleString()}
                                       </button>
                                     ) : (
                                       <span className="absent">—</span>
@@ -1479,29 +1812,37 @@ export function App() {
               <Coverage />
             ) : (
               inspected && (
-                <PullDetail
-                  report={report}
-                  pull={inspected}
-                  analysis={analyses[inspected.id]}
-                  error={failures[inspected.id]}
-                  playerId={focusedPlayer}
-                  xivanalysis={xivanalysis ?? undefined}
-                  xivanalysisByPlayer={inspectedDeepByPlayer}
-                  xivanalysisLoading={xivanalysisLoading}
-                  xivanalysisError={xivanalysisError || undefined}
-                  xivanalysisBatchRunning={isDeepBatchRunning(`pull:${inspected.id}`)}
-                  xivanalysisBatchProgress={
-                    deepBatchProgress?.scope === `pull:${inspected.id}`
-                      ? { done: deepBatchProgress.done, total: deepBatchProgress.total }
-                      : undefined
-                  }
-                  xivanalysisBatchError={
-                    deepBatchError?.scope === `pull:${inspected.id}` ? deepBatchError.message : undefined
-                  }
-                  onSelectPlayer={setFocusedPlayer}
-                  onClearPlayer={() => setFocusedPlayer(null)}
-                  onAnalyzePull={() => void analyzePullPlayers(inspected)}
-                />
+                <>
+                  <AttemptEditor
+                    key={`${report.code}:${inspected.id}`}
+                    classification={classifications.get(inspected.id)!}
+                    override={attemptOverrides[inspected.id]}
+                    onChange={(value) => updateAttempt(inspected.id, value)}
+                  />
+                  <PullDetail
+                    report={report}
+                    pull={inspected}
+                    analysis={analyses[inspected.id]}
+                    error={failures[inspected.id]}
+                    playerId={focusedPlayer}
+                    xivanalysis={xivanalysis ?? undefined}
+                    xivanalysisByPlayer={inspectedDeepByPlayer}
+                    xivanalysisLoading={xivanalysisLoading}
+                    xivanalysisError={xivanalysisError || undefined}
+                    xivanalysisBatchRunning={isDeepBatchRunning(`pull:${inspected.id}`)}
+                    xivanalysisBatchProgress={
+                      deepBatchProgress?.scope === `pull:${inspected.id}`
+                        ? { done: deepBatchProgress.done, total: deepBatchProgress.total }
+                        : undefined
+                    }
+                    xivanalysisBatchError={
+                      deepBatchError?.scope === `pull:${inspected.id}` ? deepBatchError.message : undefined
+                    }
+                    onSelectPlayer={setFocusedPlayer}
+                    onClearPlayer={() => setFocusedPlayer(null)}
+                    onAnalyzePull={() => void analyzePullPlayers(inspected)}
+                  />
+                </>
               )
             )}
           </section>

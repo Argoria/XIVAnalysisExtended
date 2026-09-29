@@ -1,3 +1,6 @@
+import { DeepCoverage } from './DeepCoverage'
+import { getXivanalysisMetricStatus } from '../../shared/xivanalysis'
+import { sanitizeXivanalysisResult, XIVANALYSIS_METRICS } from '../../shared/xivanalysis-integrity'
 import {
   ArrowDownRight,
   ArrowLeft,
@@ -24,8 +27,7 @@ import { Empty, JobBadge } from './ui'
 
 const delay = (ms: number | null) => (ms == null ? '—' : `${(ms / 1000).toFixed(2)}s`)
 const metricPercent = (value: number | null) => (value == null ? '—' : `${value.toFixed(1)}%`)
-const metricNumber = (value: number | null) =>
-  value == null ? '—' : Math.round(value).toLocaleString()
+const metricNumber = (value: number | null) => (value == null ? '—' : Math.round(value).toLocaleString())
 const readableLabel = (value: string | null, fallback: string) => {
   if (!value) return fallback
   return value
@@ -120,7 +122,7 @@ export function PullDetail({
   const selectedPerformance = player
     ? analysis?.performance.find((entry) => entry.playerId === player.id)
     : undefined
-  const selectedDeep = player ? xivanalysis ?? xivanalysisByPlayer[player.id] : undefined
+  const selectedDeep = player ? (xivanalysis ?? xivanalysisByPlayer[player.id]) : undefined
   const xivaLink =
     report.source !== 'demo' && player
       ? `https://xivanalysis.com/fflogs/${report.code}/${pull.id}/${player.id}`
@@ -143,6 +145,7 @@ export function PullDetail({
         </a>
       )}
 
+      {deepResults.length > 0 && <DeepCoverage summary={deepSummary} expected={pull.playerIds.length} />}
       {!analysis ? (
         <>
           <div className="detail-divider" />
@@ -182,9 +185,13 @@ export function PullDetail({
             </div>
             <div>
               <span>Major findings</span>
-              <strong>{deepResults.length ? deepSummary.severeSuggestions : '—'}</strong>
+              <strong>
+                {deepSummary.metricCoverage.suggestions.measured ? deepSummary.severeSuggestions : '—'}
+              </strong>
               <small>
-                {deepResults.length ? `${deepSummary.visibleSuggestions} visible total` : 'run deep analysis'}
+                {deepSummary.metricCoverage.suggestions.measured
+                  ? `${deepSummary.visibleSuggestions} visible total`
+                  : 'no measured findings'}
               </small>
             </div>
           </div>
@@ -211,7 +218,7 @@ export function PullDetail({
                       : 'Analyzing…'}
                   </>
                 ) : deepResults.length >= participatingPlayers.length ? (
-                  'Deep analysis complete'
+                  'Deep results loaded'
                 ) : (
                   'Analyze all players'
                 )}
@@ -234,7 +241,8 @@ export function PullDetail({
               </div>
               {participatingPlayers.map((candidate) => {
                 const performance = analysis.performance.find((entry) => entry.playerId === candidate.id)
-                const deep = xivanalysisByPlayer[candidate.id]
+                const rawDeep = xivanalysisByPlayer[candidate.id]
+                const deep = rawDeep ? sanitizeXivanalysisResult(rawDeep) : undefined
                 const failed = failedChecklistCount(deep)
                 const severe = severeSuggestionCount(deep)
                 const visible =
@@ -272,12 +280,24 @@ export function PullDetail({
                     </span>
                     <span>
                       <strong>
-                        {deep ? `${deep.checklist.length - failed}/${deep.checklist.length}` : '—'}
+                        {deep && getXivanalysisMetricStatus(deep, 'checklist').state === 'measured'
+                          ? `${deep.checklist.length - failed}/${deep.checklist.length}`
+                          : '—'}
                       </strong>
-                      <small>{deep ? `${failed} failed` : 'not analyzed'}</small>
+                      <small>
+                        {deep
+                          ? getXivanalysisMetricStatus(deep, 'checklist').state === 'measured'
+                            ? `${failed} failed`
+                            : 'incomplete / unavailable'
+                          : 'not analyzed'}
+                      </small>
                     </span>
                     <span>
-                      <strong>{deep ? severe : '—'}</strong>
+                      <strong>
+                        {deep && getXivanalysisMetricStatus(deep, 'suggestions').state === 'measured'
+                          ? severe
+                          : '—'}
+                      </strong>
                       <small>{deep ? `${visible} visible` : 'not analyzed'}</small>
                     </span>
                     <span className="pull-player-review-action">
@@ -369,7 +389,8 @@ export function PullDetail({
   )
 }
 
-function XivanalysisDetail({ analysis }: { analysis: XivanalysisPlayerAnalysis }) {
+function XivanalysisDetail({ analysis: rawAnalysis }: { analysis: XivanalysisPlayerAnalysis }) {
+  const analysis = sanitizeXivanalysisResult(rawAnalysis)
   const uptime = analysis.uptime
   const visibleSuggestions = analysis.suggestions.filter((suggestion) => suggestion.severityName !== 'ignore')
   const failedModules = analysis.modules.filter((module) => module.error)
@@ -377,14 +398,42 @@ function XivanalysisDetail({ analysis }: { analysis: XivanalysisPlayerAnalysis }
     <div className="xiva-analysis">
       {failedModules.length > 0 && (
         <div className="notice error xiva-error">
-          {failedModules.length} xivanalysis {failedModules.length === 1 ? 'module' : 'modules'} failed. Results below may be incomplete:
+          {failedModules.length} xivanalysis {failedModules.length === 1 ? 'module' : 'modules'} failed.
+          Results below may be incomplete:
           <ul>
             {failedModules.map((module) => (
-              <li key={module.handle}>{readableLabel(module.handle, module.handle)}: {module.error}</li>
+              <li key={module.handle}>
+                {readableLabel(module.handle, module.handle)}: {module.error}
+              </li>
             ))}
           </ul>
         </div>
       )}
+      <dl className="metric-status-list">
+        {XIVANALYSIS_METRICS.map((key) => {
+          const status = getXivanalysisMetricStatus(analysis, key)
+          return (
+            <div key={key}>
+              <dt>
+                {
+                  {
+                    gcdUptime: 'GCD uptime',
+                    gcdDowntime: 'GCD delay',
+                    weaving: 'Weaving',
+                    interrupts: 'Interrupted casts',
+                    checklist: 'Checklist',
+                    suggestions: 'Suggestions',
+                  }[key]
+                }
+              </dt>
+              <dd>
+                {status.state}
+                {status.reason ? ` — ${status.reason}` : ''}
+              </dd>
+            </div>
+          )
+        })}
+      </dl>
       <div className="xiva-metrics">
         <div>
           <span>GCD uptime</span>
@@ -582,12 +631,39 @@ export function Coverage() {
         </h3>
         <p>These are planned extractors. None is counted as a measured result yet:</p>
         <div className="extraction-list">
-          <div><strong>Opener</strong><span>Job-specific action sequence and timing, from each job's xivanalysis modules. Report observed actions, expected actions, and coverage; no universal pass/fail shortcut.</span></div>
-          <div><strong>Mitigation</strong><span>Defensive casts aligned to incoming damage and encounter windows. Attribute usage only where the player had an eligible opportunity.</span></div>
-          <div><strong>DoT uptime</strong><span>Use job and target-specific DoT tracking plus targetable windows. Jobs without a DoT receive not-applicable, not zero.</span></div>
-          <div><strong>Boss mechanics</strong><span>Map encounter-specific enemy casts, repeated occurrences, player hits, and phase windows to named opportunities. The sidebar's last enemy cast is only a provisional progression marker.</span></div>
+          <div>
+            <strong>Opener</strong>
+            <span>
+              Job-specific action sequence and timing, from each job's xivanalysis modules. Report observed
+              actions, expected actions, and coverage; no universal pass/fail shortcut.
+            </span>
+          </div>
+          <div>
+            <strong>Mitigation</strong>
+            <span>
+              Defensive casts aligned to incoming damage and encounter windows. Attribute usage only where the
+              player had an eligible opportunity.
+            </span>
+          </div>
+          <div>
+            <strong>DoT uptime</strong>
+            <span>
+              Use job and target-specific DoT tracking plus targetable windows. Jobs without a DoT receive
+              not-applicable, not zero.
+            </span>
+          </div>
+          <div>
+            <strong>Boss mechanics</strong>
+            <span>
+              Map encounter-specific enemy casts, repeated occurrences, player hits, and phase windows to
+              named opportunities. The sidebar's last enemy cast is only a provisional progression marker.
+            </span>
+          </div>
         </div>
-        <p>Each extractor must expose measured, unsupported, incomplete, or not-applicable status. Missing evidence must never become a measured zero.</p>
+        <p>
+          Each extractor must expose measured, unsupported, incomplete, or not-applicable status. Missing
+          evidence must never become a measured zero.
+        </p>
       </div>
       <div className="coverage-block">
         <h3>
@@ -617,6 +693,7 @@ export function Coverage() {
           30-second opener gives evidence about that opener; it does not establish full-fight performance.
         </p>
         <p>
+          Confirmed scrapped pulls are excluded by default. Suspected resets remain included until reviewed.
           No composite performance score is published yet. Later scoring needs versioned job-specific metrics,
           encounter opportunity counts, support state, and enough observed mechanics to be meaningful.
         </p>
