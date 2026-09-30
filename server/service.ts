@@ -75,17 +75,19 @@ export class ReportService {
     return result
   }
 
-  async progression(code: string, signal?: AbortSignal): Promise<ProgressionResult> {
+  async progression(code: string, signal?: AbortSignal, fightId?: number): Promise<ProgressionResult> {
     const { raw, report } = await this.report(code, false, signal)
-    const key = `${code}:${raw.endTime}:progression`
+    const pulls = fightId === undefined ? report.pulls : report.pulls.filter((pull) => pull.id === fightId)
+    if (fightId !== undefined && !pulls.length) throw new FflogsError('Selected encounter was not found in this report.', 404)
+    const key = `${code}:${raw.endTime}:progression:${fightId ?? 'all'}`
     const cached = this.progressions.get(key)
     if (cached) return cached
     const result: ProgressionResult = { pulls: {}, failedPulls: [] }
     let index = 0
     async function worker(service: ReportService) {
-      while (index < report.pulls.length) {
+      while (index < pulls.length) {
         signal?.throwIfAborted()
-        const pull = report.pulls[index++]
+        const pull = pulls[index++]
         try {
           const events = await service.client.events(code, pull, 'Casts', undefined, signal, 'Enemies')
           result.pulls[pull.id] = progressionMarkers(raw, pull, events)

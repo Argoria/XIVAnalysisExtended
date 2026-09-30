@@ -1,4 +1,5 @@
 import express from 'express'
+import { accessGate, type AccessCredentials } from './hosting'
 import { resolve } from 'node:path'
 import { z, ZodError } from 'zod'
 import { parseReportInput } from '../shared/report-input'
@@ -6,9 +7,11 @@ import { FflogsError } from './fflogs/client'
 import type { ReportService } from './service'
 import { XivanalysisRunnerError } from './xivanalysis/runner'
 
-export function createApp(service: ReportService) {
+export function createApp(service: ReportService, access?: AccessCredentials) {
   const app = express()
   app.disable('x-powered-by')
+  app.get('/healthz', (_req, res) => res.set('Cache-Control', 'no-store').json({ status: 'ok' }))
+  app.use(accessGate(access))
   app.use('/api', (_req, res, next) => {
     res.setHeader('Cache-Control', 'no-store')
     next()
@@ -31,7 +34,10 @@ export function createApp(service: ReportService) {
     res.on('close', () => {
       if (!res.writableEnded) controller.abort()
     })
-    res.json(await service.progression(code, controller.signal))
+    const fight = z.coerce.number().int().positive().optional().safeParse(req.query.fight)
+    if (!fight.success) throw new FflogsError('Fight ID must be a positive integer.', 400)
+    const fightId = fight.data
+    res.json(await service.progression(code, controller.signal, fightId))
   })
   app.get('/api/reports/:code/pulls/:id', async (req, res) => {
     const code = parseReportInput(req.params.code).code

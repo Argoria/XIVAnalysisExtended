@@ -5,8 +5,8 @@ import { FflogsClient } from '../server/fflogs/client'
 import { ReportService } from '../server/service'
 
 const servers: Server[] = []
-async function start() {
-  const app = createApp(new ReportService(new FflogsClient(() => ({}))))
+async function start(access?: { user: string; password: string }) {
+  const app = createApp(new ReportService(new FflogsClient(() => ({}))), access)
   const server = await new Promise<Server>((resolve) => {
     const listening = app.listen(0, '127.0.0.1', () => resolve(listening))
   })
@@ -51,4 +51,21 @@ describe('HTTP API boundary', () => {
     expect(response.status).toBe(404)
     expect(await response.json()).toEqual({ error: 'API route not found.' })
   })
+})
+
+it('protects pages and APIs while leaving only liveness public', async () => {
+  const base = await start({ user: 'dev', password: 'test-password' })
+  expect((await fetch(base + '/healthz')).status).toBe(200)
+  for (const path of ['/', '/api/health', '/api/reports/nvM2FT6QLkJ4Bb19']) {
+    const response = await fetch(base + path)
+    expect(response.status).toBe(401)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+  }
+  const wrong = { Authorization: 'Basic ' + Buffer.from('dev:wrong').toString('base64') }
+  expect((await fetch(base + '/api/health', { headers: wrong })).status).toBe(401)
+  const headers = { Authorization: 'Basic ' + Buffer.from('dev:test-password').toString('base64') }
+  expect((await fetch(base + '/api/health', { headers })).status).toBe(200)
+})
+it('rejects invalid progression scope before requesting FFLogs', async () => {
+  expect((await fetch((await start()) + '/api/reports/nvM2FT6QLkJ4Bb19/progression?fight=-1')).status).toBe(400)
 })

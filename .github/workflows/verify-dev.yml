@@ -1,0 +1,73 @@
+name: Verify dev
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-dev
+  cancel-in-progress: true
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: dev
+      deployment: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: corepack enable
+      - name: Install pinned xivanalysis dependencies
+        working-directory: vendor/xivanalysis
+        run: corepack pnpm install --frozen-lockfile
+      - name: Install verification browser
+        run: |
+          npm install --prefix .artifacts/browser-tools --no-audit --no-fund playwright@1.58.2
+          .artifacts/browser-tools/node_modules/.bin/playwright install --with-deps chromium
+      - name: Verify production build with real FFLogs
+        env:
+          FFLOGS_CLIENT_ID: ${{ secrets.FFLOGS_CLIENT_ID }}
+          FFLOGS_CLIENT_SECRET: ${{ secrets.FFLOGS_CLIENT_SECRET }}
+          FFLOGS_VERIFY_REPORT: ${{ vars.FFLOGS_VERIFY_REPORT }}
+          FFLOGS_VERIFY_FIGHT: ${{ vars.FFLOGS_VERIFY_FIGHT }}
+        run: node scripts/verify-live.mjs
+      - name: Save local verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-verification
+          path: .artifacts/live-verification
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Verify deployed service
+        if: success() && vars.DEV_BASE_URL != ''
+        env:
+          VERIFY_OUTPUT_DIR: .artifacts/deployed-verification
+          VERIFY_BASE_URL: ${{ vars.DEV_BASE_URL }}
+          APP_ACCESS_USER: ${{ secrets.APP_ACCESS_USER }}
+          APP_ACCESS_PASSWORD: ${{ secrets.APP_ACCESS_PASSWORD }}
+          FFLOGS_VERIFY_REPORT: ${{ vars.FFLOGS_VERIFY_REPORT }}
+          FFLOGS_VERIFY_FIGHT: ${{ vars.FFLOGS_VERIFY_FIGHT }}
+        run: node scripts/verify-live.mjs
+      - name: Save deployed verification evidence
+        if: always() && vars.DEV_BASE_URL != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployed-verification
+          path: .artifacts/deployed-verification
+          if-no-files-found: ignore
+          retention-days: 7

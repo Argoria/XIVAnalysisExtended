@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: pullwise-dev
+    runtime: node
+    plan: free
+    branch: master
+    buildCommand: npm ci --include=dev && npm run analysis:setup && npm run build
+    startCommand: node --import tsx server/index.ts
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: FFLOGS_CLIENT_ID
+        sync: false
+      - key: FFLOGS_CLIENT_SECRET
+        sync: false
+      - key: APP_ACCESS_USER
+        value: dev
+      - key: APP_ACCESS_PASSWORD
+        generateValue: true
