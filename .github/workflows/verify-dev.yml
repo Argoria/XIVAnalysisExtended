@@ -44,7 +44,7 @@ jobs:
           FFLOGS_CLIENT_SECRET: ${{ secrets.FFLOGS_CLIENT_SECRET }}
           FFLOGS_VERIFY_REPORT: ${{ vars.FFLOGS_VERIFY_REPORT }}
           FFLOGS_VERIFY_FIGHT: ${{ vars.FFLOGS_VERIFY_FIGHT }}
-        run: node scripts/verify-live.mjs
+        run: node --import tsx scripts/verify-live.mjs
       - name: Save local verification evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -62,7 +62,7 @@ jobs:
           APP_ACCESS_PASSWORD: ${{ secrets.APP_ACCESS_PASSWORD }}
           FFLOGS_VERIFY_REPORT: ${{ vars.FFLOGS_VERIFY_REPORT }}
           FFLOGS_VERIFY_FIGHT: ${{ vars.FFLOGS_VERIFY_FIGHT }}
-        run: node scripts/verify-live.mjs
+        run: node --import tsx scripts/verify-live.mjs
       - name: Save deployed verification evidence
         if: always() && vars.DEV_BASE_URL != ''
         uses: actions/upload-artifact@v4

@@ -31,8 +31,10 @@ const clean = (error) => {
 }
 async function get(path) {
   const response = await fetch(base + path, { headers, signal: AbortSignal.timeout(180000) })
-  assert.equal(response.status, 200, path + ' returned HTTP ' + response.status)
-  return response.json()
+  const body = await response.json().catch(() => ({}))
+  assert.equal(response.status, 200,
+    path + ' returned HTTP ' + response.status + (body.error ? ': ' + clean(body.error) : ''))
+  return body
 }
 try {
   if (!remote) {
@@ -60,6 +62,15 @@ try {
   }
   assert.equal((await get('/api/health')).configured, true, 'FFLogs credentials are not configured')
   summary.checks.push('production server, health and access protection')
+  if (!remote) {
+    // Separate API-wide access problems from a report-specific permission denial.
+    const { FflogsClient } = await import('../server/fflogs/client.ts')
+    const client = new FflogsClient(() => ({
+      id: process.env.FFLOGS_CLIENT_ID, secret: process.env.FFLOGS_CLIENT_SECRET,
+    }))
+    await client.query('query VerificationAccess { __typename }', {})
+    summary.checks.push('FFLogs OAuth and public GraphQL access')
+  }
   const root = '/api/reports/' + reportCode
   const report = await get(root)
   assert.equal(report.source, 'fflogs')
