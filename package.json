@@ -16,7 +16,7 @@
     "check": "npm run typecheck && npm test && npm run build",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "analysis:setup": "git submodule update --init --recursive && cd vendor/xivanalysis && corepack pnpm install --frozen-lockfile",
+    "analysis:setup": "git submodule update --init --recursive && cd vendor/xivanalysis && corepack pnpm install --frozen-lockfile --prod=false",
     "analysis:smoke": "node analysis-runner/runner.cjs < analysis-runner/smoke-input.json"
   },
   "dependencies": {
