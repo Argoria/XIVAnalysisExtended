@@ -26,7 +26,7 @@ Required environment secrets: `FFLOGS_CLIENT_ID` and `FFLOGS_CLIENT_SECRET`.
 
 Optional environment variables:
 
-- `FFLOGS_VERIFY_REPORT`: report code (defaults to `nvM2FT6QLkJ4Bb19`).
+- `FFLOGS_VERIFY_REPORT`: report code (defaults to `Z2zmY7GdpKMhqPgc`).
 - `FFLOGS_VERIFY_FIGHT`: one encounter ID. By default select the first pull lasting at least 60 seconds.
 - `DEV_BASE_URL`: deployed HTTPS URL. Enables a second verification against that service, using `APP_ACCESS_USER` and `APP_ACCESS_PASSWORD` secrets.
 

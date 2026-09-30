@@ -14,7 +14,7 @@ const remote = process.env.VERIFY_BASE_URL
 const base = (remote || 'http://127.0.0.1:3001').replace(/\/$/, '')
 const user = remote ? process.env.APP_ACCESS_USER : 'verification'
 const password = remote ? process.env.APP_ACCESS_PASSWORD : randomBytes(32).toString('hex')
-const reportCode = process.env.FFLOGS_VERIFY_REPORT || 'nvM2FT6QLkJ4Bb19'
+const reportCode = process.env.FFLOGS_VERIFY_REPORT || 'Z2zmY7GdpKMhqPgc'
 assert.match(reportCode, /^[a-zA-Z0-9]{16}$/)
 const headers = user && password
   ? { Authorization: 'Basic ' + Buffer.from(user + ':' + password).toString('base64') }
